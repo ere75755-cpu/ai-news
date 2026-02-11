@@ -1,440 +1,329 @@
 
     <!DOCTYPE html>
-    <html lang="zh-CN">
+    <html>
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>AI 行业分析看板</title>
+        <title>AI Industry Dashboard</title>
         <style>
-            :root { --primary: #1a73e8; --bg: #f8f9fa; --card-bg: #ffffff; --text: #202124; --secondary-text: #5f6368; }
-            body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); margin: 0; line-height: 1.6; }
+            :root { --primary: #1a73e8; --bg: #f8f9fa; --text: #202124; }
+            body { font-family: sans-serif; background: var(--bg); color: var(--text); margin: 0; }
             .container { max-width: 900px; margin: auto; padding: 20px; }
             
-            /* Header & Tabs */
-            header { text-align: center; margin-bottom: 30px; }
-            .tabs { display: flex; justify-content: center; gap: 30px; border-bottom: 1px solid #ddd; margin-bottom: 25px; }
-            .tab-btn { padding: 12px 24px; cursor: pointer; border: none; background: none; font-size: 16px; font-weight: 500; color: var(--secondary-text); transition: 0.3s; }
-            .tab-btn.active { color: var(--primary); border-bottom: 3px solid var(--primary); }
-            .tab-content { display: none; animation: fadeIn 0.4s; }
-            .tab-content.active { display: block; }
+            /* Tabs */
+            .tabs-nav { display: flex; border-bottom: 2px solid #ddd; margin-bottom: 20px; background: #fff; border-radius: 8px 8px 0 0; }
+            .tab-btn { padding: 15px 25px; cursor: pointer; border: none; background: none; font-size: 16px; font-weight: bold; color: #5f6368; flex: 1; transition: 0.3s; }
+            .tab-btn.active { color: var(--primary); border-bottom: 3px solid var(--primary); background: #f1f3f4; }
+            
+            .tab-pane { display: none; padding: 10px; }
+            .tab-pane.active { display: block; }
 
-            /* Filters */
-            .filter-section { background: #fff; padding: 20px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); margin-bottom: 25px; display: flex; gap: 10px; flex-wrap: wrap; }
-            .filter-item { flex: 1; min-width: 140px; }
-            label { display: block; font-size: 12px; color: var(--secondary-text); margin-bottom: 5px; }
-            select { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #ddd; background: #fff; outline: none; }
-
+            /* Filter Bar */
+            .filter-box { background: #fff; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; }
+            .filter-box select { flex: 1; min-width: 120px; padding: 8px; border-radius: 6px; border: 1px solid #ddd; }
+            
             /* Cards */
-            .company-header { color: var(--primary); border-left: 5px solid var(--primary); padding-left: 15px; margin: 35px 0 15px; font-size: 22px; }
-            .card { background: var(--card-bg); border: 1px solid #eee; padding: 20px; margin-bottom: 15px; border-radius: 12px; transition: transform 0.2s, box-shadow 0.2s; position: relative; }
-            .card:hover { transform: translateY(-3px); box-shadow: 0 6px 20px rgba(0,0,0,0.1); border-color: var(--primary); }
-            .tag-group { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
-            .tag { font-size: 12px; padding: 3px 10px; border-radius: 6px; font-weight: bold; }
+            .company-section { margin-top: 30px; }
+            .co-title { color: var(--primary); border-left: 5px solid var(--primary); padding-left: 10px; margin-bottom: 15px; }
+            .card { background: #fff; border: 1px solid #eee; padding: 18px; margin-bottom: 12px; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+            .tag { font-size: 11px; padding: 2px 8px; border-radius: 4px; font-weight: bold; margin-right: 5px; }
             .tag-topic { background: #e8f0fe; color: var(--primary); }
-            .tag-date { background: #f1f3f4; color: var(--secondary-text); }
             .tag-region { background: #fef7e0; color: #f29900; }
-            .title { font-size: 18px; font-weight: 600; color: #111; margin-bottom: 10px; display: block; }
-            .content { font-size: 15px; color: #444; margin-bottom: 15px; }
-            .footer { display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: var(--secondary-text); border-top: 1px solid #f5f5f5; pt: 10px; padding-top: 12px; }
-            .btn-link { color: var(--primary); text-decoration: none; font-weight: 600; border: 1px solid var(--primary); padding: 4px 12px; border-radius: 6px; transition: 0.2s; }
-            .btn-link:hover { background: var(--primary); color: #fff; }
-
-            @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-            @media (max-width: 600px) { .filter-item { flex: 100%; } }
+            .title { font-size: 17px; font-weight: bold; display: block; margin: 10px 0; }
+            .footer { font-size: 12px; color: #888; display: flex; justify-content: space-between; margin-top: 10px; border-top: 1px solid #f9f9f9; padding-top: 10px; }
+            a { color: var(--primary); text-decoration: none; }
         </style>
     </head>
     <body>
     <div class="container">
-        <header>
-            <h1>🤖 AI 行业分析看板</h1>
-            <p style="color:var(--secondary-text)">每日自动更新 · 深度结构化分析</p>
-        </header>
+        <header style="text-align:center; margin-bottom:20px;"><h1>🤖 AI 行业动态仪表盘</h1></header>
         
-        <div class="tabs">
-            <button class="tab-btn active" onclick="switchTab(event, 'daily')">每日综述</button>
-            <button class="tab-btn" onclick="switchTab(event, 'filter')">深度筛选</button>
+        <div class="tabs-nav">
+            <div class="tab-btn active" onclick="openTab(event, 'daily-view')">每日综述</div>
+            <div class="tab-btn" onclick="openTab(event, 'filter-view')">深度筛选</div>
         </div>
 
-        <div id="daily" class="tab-content active">
-            <div style="text-align: right; margin-bottom: 20px;">
-                📅 切换日期：
-                <select id="dateSelect" onchange="showDate(this.value)" style="width: auto; display: inline-block;">
-                    <option value="2026/2/10">2026/2/10</option>
+        <div id="daily-view" class="tab-pane active">
+            <div style="margin-bottom:20px;">
+                📅 切换日期: <select onchange="changeDate(this.value)">
+                    <option value="2026/2/11">2026/2/11</option><option value="2026/2/10">2026/2/10</option>
                 </select>
             </div>
             
-            <div id="group-2026/2/10" class="day-group" style="display: block">
+            <div id="date-2026/2/11" class="date-group" style="display: block">
                 
-                    <h2 class="company-header">OpenAI</h2>
+                <div class="company-section">
+                    <h3 class="co-title">其他</h3>
                     
                     <div class="card">
-                        <div class="tag-group">
-                            <span class="tag tag-topic">技术迭代</span>
-                            <span class="tag tag-region">海外</span>
-                        </div>
-                        <span class="title">OpenAI的视频生成模型Sora上线Extensions续写功能，支持视频前后扩展与长视频创作</span>
-                        <p class="content">OpenAI的视频生成模型Sora上线了Extensions续写功能，允许用户在已有视频片段的基础上进行前后双向的逻辑扩展，从而实现更长时长、更具叙事连贯性的AI视频创作。</p>
-                        <div class="footer">
-                            <span>来源：Twitter</span>
-                            <a href="https://x.com/soraofficialapp/status/2021001367033425951" class="btn-link" target="_blank">阅读原文 →</a>
-                        </div>
-                    </div>
-                    
-                    <div class="card">
-                        <div class="tag-group">
-                            <span class="tag tag-topic">产品动态</span>
-                            <span class="tag tag-region">海外</span>
-                        </div>
-                        <span class="title">OpenAI向Cursor等第三方开放GPT-5.3-Codex，并扩大安全缓解措施</span>
-                        <p class="content">OpenAI开发者团队宣布开始逐步向Cursor、Visual Studio Code、Github等第三方合作伙伴开放GPT-5.3-Codex接口，允许开发者将更先进的代码理解能力集成到自有应用中，并将在未来几周扩大安全缓解措施。</p>
-                        <div class="footer">
-                            <span>来源：Twitter</span>
-                            <a href="https://x.com/OpenAIDevs/status/2020921792941166928" class="btn-link" target="_blank">阅读原文 →</a>
-                        </div>
-                    </div>
-                    
-                    <div class="card">
-                        <div class="tag-group">
-                            <span class="tag tag-topic">产品动态</span>
-                            <span class="tag tag-region">海外</span>
-                        </div>
-                        <span class="title">OpenAI将ChatGPT引入 300 万文职和军人使用的GenAI.mil平台，为该平台提供定制化AI技术支持</span>
-                        <p class="content">OpenAI宣布将ChatGPT技术引入被300万文职和军人使用的GenAI.mil平台，为该平台提供定制化的生成式AI技术支持，旨在提升特定领域的办公效率与信息处理能力。</p>
-                        <div class="footer">
-                            <span>来源：OpenAI</span>
-                            <a href="https://openai.com/index/bringing-chatgpt-to-genaimil/" class="btn-link" target="_blank">阅读原文 →</a>
-                        </div>
-                    </div>
-                    
-                    <div class="card">
-                        <div class="tag-group">
-                            <span class="tag tag-topic">产品动态</span>
-                            <span class="tag tag-region">海外</span>
-                        </div>
-                        <span class="title">OpenAI正式在ChatGPT启动广告测试，面向免费和Go订阅层级成年用户</span>
-                        <p class="content">OpenAI官方宣布正式在ChatGPT界面内启动广告展示测试，该测试主要面向免费层级和Go订阅层级的已登录成年用户，旨在探索除订阅制以外的商业化变现路径以平衡高昂的算力成本。</p>
-                        <div class="footer">
-                            <span>来源：Open AI</span>
-                            <a href="https://openai.com/zh-Hans-CN/index/testing-ads-in-chatgpt/" class="btn-link" target="_blank">阅读原文 →</a>
-                        </div>
-                    </div>
-                    
-                    <div class="card">
-                        <div class="tag-group">
-                            <span class="tag tag-topic">商业动态</span>
-                            <span class="tag tag-region">海外</span>
-                        </div>
-                        <span class="title">OpenAI拟完成千亿美元融资，ChatGPT月增长率重回10%以上</span>
-                        <p class="content">OpenAI即将完成新一轮估值达千亿美元的融资，同时ChatGPT的月用户增长率重回10%以上的巅峰水平，进一步巩固了其在全球生成式AI领域的领导地位。</p>
-                        <div class="footer">
-                            <span>来源：The Decoder</span>
-                            <a href="https://the-decoder.com/openai-says-chatgpt-is-growing-again-plans-new-model-this-week/" class="btn-link" target="_blank">阅读原文 →</a>
-                        </div>
-                    </div>
-                    
-                
-                    <h2 class="company-header">Anthropic</h2>
-                    
-                    <div class="card">
-                        <div class="tag-group">
-                            <span class="tag tag-topic">商业动态</span>
-                            <span class="tag tag-region">海外</span>
-                        </div>
-                        <span class="title">Anthropic聘请前谷歌高管，加速扩张数据中心基础设施建设</span>
-                        <p class="content">AI巨头Anthropic计划大举扩张其数据中心基础设施，并聘请了多位前谷歌高管负责相关业务，以支撑其下一代大模型研发所需的庞大算力需求。</p>
-                        <div class="footer">
-                            <span>来源：The Information</span>
-                            <a href="https://www.theinformation.com/newsletters/ai-infrastructure/anthropics-data-center-ambition-ex-google-execs-make-happen" class="btn-link" target="_blank">阅读原文 →</a>
-                        </div>
-                    </div>
-                    
-                
-                    <h2 class="company-header">Meta</h2>
-                    
-                    <div class="card">
-                        <div class="tag-group">
-                            <span class="tag tag-topic">商业动态</span>
-                            <span class="tag tag-region">海外</span>
-                        </div>
-                        <span class="title">欧盟威胁对Meta采取措施，防止其在WhatsApp屏蔽AI竞争对手</span>
-                        <p class="content">欧盟监管机构威胁将对Meta采取临时措施，以阻止其在WhatsApp平台屏蔽竞争对手的AI服务，旨在维护欧洲市场的公平竞争环境并防止科技巨头垄断。</p>
-                        <div class="footer">
-                            <span>来源：Reuters</span>
-                            <a href="https://www.reuters.com/world/eu-threatens-meta-with-interim-measure-blocking-ai-rivals-whatsapp-2026-02-09/" class="btn-link" target="_blank">阅读原文 →</a>
-                        </div>
-                    </div>
-                    
-                
-                    <h2 class="company-header">腾讯</h2>
-                    
-                    <div class="card">
-                        <div class="tag-group">
-                            <span class="tag tag-topic">技术迭代</span>
-                            <span class="tag tag-region">国内</span>
-                        </div>
-                        <span class="title">腾讯混元开源0.3B端侧模型，采用2Bit量化技术使内存占用仅600MB</span>
-                        <p class="content">腾讯混元大模型团队宣布开源其0.3B参数的端侧模型，该模型采用了首个产业级2Bit量化技术，使内存占用仅为600MB，大幅降低了在移动端设备上运行大模型的门槛。</p>
-                        <div class="footer">
-                            <span>来源：腾讯混元</span>
-                            <a href="https://mp.weixin.qq.com/s/m3Sr4fRLAvc7C6MV1RR-ew" class="btn-link" target="_blank">阅读原文 →</a>
-                        </div>
-                    </div>
-                    
-                
-                    <h2 class="company-header">其他</h2>
-                    
-                    <div class="card">
-                        <div class="tag-group">
-                            <span class="tag tag-topic">技术迭代</span>
-                            <span class="tag tag-region">国内</span>
-                        </div>
-                        <span class="title">阿里巴巴旗下魔搭ModelScope推出OpenAPI服务，方便开发者通过标准接口调用社区内的各类优质AI模型</span>
-                        <p class="content">阿里巴巴旗下的开源模型社区魔搭ModelScope正式推出OpenAPI服务，允许开发者通过标准化接口直接调用社区内托管的各类优质AI模型，极大地简化了AI能力的集成与部署流程。</p>
-                        <div class="footer">
-                            <span>来源：ModelScope</span>
-                            <a href="https://mp.weixin.qq.com/s/zpq-GVFuY90DZXw0tC_2NA" class="btn-link" target="_blank">阅读原文 →</a>
-                        </div>
-                    </div>
-                    
-                    <div class="card">
-                        <div class="tag-group">
-                            <span class="tag tag-topic">技术迭代</span>
-                            <span class="tag tag-region">国内</span>
-                        </div>
-                        <span class="title">浪潮信息团队推出Yuan 3.0 Flash，用RAPO+RIRM修正模型过度思考，推理token降低75%</span>
-                        <p class="content">浪潮信息团队针对算力瓶颈推出Yuan 3.0 Flash模型，通过创新的RAPO和RIRM技术修正模型过度思考，使推理token消耗降低75%，在低算力环境下挑战了传统的Scaling Law。</p>
-                        <div class="footer">
-                            <span>来源：新智元</span>
-                            <a href="https://mp.weixin.qq.com/s/vtX3m8OiV9PKVVykoCmSqQ" class="btn-link" target="_blank">阅读原文 →</a>
-                        </div>
-                    </div>
-                    
-                    <div class="card">
-                        <div class="tag-group">
-                            <span class="tag tag-topic">技术迭代</span>
-                            <span class="tag tag-region">海外</span>
-                        </div>
-                        <span class="title">Cursor发布Composer 1.5编程模型，提升复杂代码生成准确性</span>
-                        <p class="content">AI代码编辑器Cursor正式发布Composer 1.5版本，通过优化模型架构和上下文理解能力提升了代码生成的准确性和复杂跨文件任务的处理能力，进一步优化了开发者的编程体验。</p>
-                        <div class="footer">
-                            <span>来源：Cursor</span>
-                            <a href="https://cursor.com/cn/blog/composer-1-5" class="btn-link" target="_blank">阅读原文 →</a>
-                        </div>
-                    </div>
-                    
-                    <div class="card">
-                        <div class="tag-group">
-                            <span class="tag tag-topic">技术迭代</span>
-                            <span class="tag tag-region">海外</span>
-                        </div>
-                        <span class="title">智谱GLM-5在多模态理解和逻辑推理方面有重大提升，总参数量或达700B</span>
-                        <p class="content">智谱AI下一代大模型GLM-5的架构细节在开源社区曝光，信息显示其总参数量可能达到700B，在多模态理解、长文本处理及逻辑推理能力方面较前代有重大提升，标志着国产大模型的新突破。</p>
-                        <div class="footer">
-                            <span>来源：Twitter</span>
-                            <a href="https://x.com/eliebakouch/status/2020824645868630065/photo/1" class="btn-link" target="_blank">阅读原文 →</a>
-                        </div>
-                    </div>
-                    
-                    <div class="card">
-                        <div class="tag-group">
-                            <span class="tag tag-topic">产品动态</span>
-                            <span class="tag tag-region">国内</span>
-                        </div>
-                        <span class="title">可灵AI助力影视筹备视觉化，通过AI生成画面提升预演效率</span>
-                        <p class="content">快手旗下的可灵AI在影视制作领域展现出强大实用性，能够通过AI生成高质量预演画面实现电影“未拍先见”，显著提升了影视筹备阶段的视觉化效率和沟通成本。</p>
-                        <div class="footer">
-                            <span>来源：可灵AI</span>
-                            <a href="https://mp.weixin.qq.com/s/wGBiJsRDtNw0K2Ii2QdXaw" class="btn-link" target="_blank">阅读原文 →</a>
-                        </div>
-                    </div>
-                    
-                    <div class="card">
-                        <div class="tag-group">
-                            <span class="tag tag-topic">产品动态</span>
-                            <span class="tag tag-region">国内</span>
-                        </div>
-                        <span class="title">美团AI编程工具CatPaw全量开放，旨在通过智能代码补全和逻辑纠错显著提升开发效率</span>
-                        <p class="content">美团自主研发的AI辅助编程工具CatPaw正式面向全量用户开放，支持多种编程语言和IDE环境，旨在通过智能代码补全和逻辑纠错显著提升开发者的编码效率和代码质量。</p>
-                        <div class="footer">
-                            <span>来源：Meituan CatPaw</span>
-                            <a href="https://mp.weixin.qq.com/s/tLa2PFvcUP0X7GgZKztwsA" class="btn-link" target="_blank">阅读原文 →</a>
-                        </div>
-                    </div>
-                    
-                    <div class="card">
-                        <div class="tag-group">
-                            <span class="tag tag-topic">产品动态</span>
-                            <span class="tag tag-region">国内</span>
-                        </div>
-                        <span class="title">小红书内测基于AI智能体的视频剪辑工具OpenStoryline，辅助内容创作</span>
-                        <p class="content">小红书正在内测一款基于AI智能体的独立视频剪辑工具OpenStoryline，该产品主打AI辅助叙事与智能化剪辑，旨在降低创作门槛并丰富平台的内容生态。</p>
-                        <div class="footer">
-                            <span>来源：财联社AI daily</span>
-                            <a href="https://mp.weixin.qq.com/s/JfhOHaGe1LFQcH1DTKNjTg" class="btn-link" target="_blank">阅读原文 →</a>
-                        </div>
-                    </div>
-                    
-                    <div class="card">
-                        <div class="tag-group">
-                            <span class="tag tag-topic">产品动态</span>
-                            <span class="tag tag-region">国内</span>
-                        </div>
-                        <span class="title">字节即梦Seedance 2.0紧急禁用真人素材，以规避深伪风险与监管</span>
-                        <p class="content">字节跳动旗下即梦平台在Seedance 2.0模型爆火后紧急禁用了真人图片和视频素材的输入功能，旨在防止利用该模型生成误导性深度伪造内容，并响应国家关于AIGC内容安全与真人肖像保护的监管要求。</p>
-                        <div class="footer">
-                            <span>来源：TechWeb</span>
-                            <a href="https://www.techweb.com.cn/internet/2026-02-10/2971793.shtml" class="btn-link" target="_blank">阅读原文 →</a>
-                        </div>
-                    </div>
-                    
-                    <div class="card">
-                        <div class="tag-group">
-                            <span class="tag tag-topic">产品动态</span>
-                            <span class="tag tag-region">海外</span>
-                        </div>
-                        <span class="title">匿名模型Aurora Alpha于OpenRouter平台上线，该模型专为编码助手、实时对话应用和代理工作流构建，是为速度设计的推理模型</span>
-                        <p class="content">模型聚合平台OpenRouter上线了匿名模型Aurora Alpha，该模型专为编码助手、实时对话应用和代理工作流构建，是一款在推理速度和响应效率上经过深度优化的推理模型。</p>
-                        <div class="footer">
-                            <span>来源：OpenRouter</span>
-                            <a href="https://openrouter.ai/openrouter/aurora-alpha" class="btn-link" target="_blank">阅读原文 →</a>
-                        </div>
-                    </div>
-                    
-                    <div class="card">
-                        <div class="tag-group">
-                            <span class="tag tag-topic">产品动态</span>
-                            <span class="tag tag-region">海外</span>
-                        </div>
+                        <span class="tag tag-topic">产品动态</span>
+                        <span class="tag tag-region">海外</span>
                         <span class="title">OpenClaw成为Github星标之王，并登顶AI产品榜·网站榜·全球增速榜，美团联合创始人王慧文公开发帖寻求投资合作</span>
-                        <p class="content">OpenClaw凭借卓越性能成为Github星标之王并登顶AI产品榜全球增速榜，这一表现吸引了美团联合创始人王慧文深夜发帖表达强烈的投资意向，反映出资本市场对高性能AI框架的追捧。</p>
-                        <div class="footer">
-                            <span>来源：36氪</span>
-                            <a href="https://mp.weixin.qq.com/s/cJKSp0Phz76HMVlqfyDBKA" class="btn-link" target="_blank">阅读原文 →</a>
-                        </div>
+                        <p style="font-size:14px; color:#444;">OpenClaw凭借卓越性能成为Github星标之王并登顶AI产品榜全球增速榜，这一表现吸引了美团联合创始人王慧文深夜发帖表达强烈的投资意向，反映出资本市场对高性能AI框架的追捧。</p>
+                        <div class="footer"><span>来源: 36氪</span><a href="https://mp.weixin.qq.com/s/cJKSp0Phz76HMVlqfyDBKA" target="_blank">原文链接 →</a></div>
+                    </div>
+                    
+                </div>
+                
+            </div>
+            
+            <div id="date-2026/2/10" class="date-group" style="display: none">
+                
+                <div class="company-section">
+                    <h3 class="co-title">OpenAI</h3>
+                    
+                    <div class="card">
+                        <span class="tag tag-topic">技术迭代</span>
+                        <span class="tag tag-region">海外</span>
+                        <span class="title">OpenAI的视频生成模型Sora上线Extensions续写功能，支持视频前后扩展与长视频创作</span>
+                        <p style="font-size:14px; color:#444;">OpenAI的视频生成模型Sora上线了Extensions续写功能，允许用户在已有视频片段的基础上进行前后双向的逻辑扩展，从而实现更长时长、更具叙事连贯性的AI视频创作。</p>
+                        <div class="footer"><span>来源: Twitter</span><a href="https://x.com/soraofficialapp/status/2021001367033425951" target="_blank">原文链接 →</a></div>
                     </div>
                     
                     <div class="card">
-                        <div class="tag-group">
-                            <span class="tag tag-topic">商业动态</span>
-                            <span class="tag tag-region">海外</span>
-                        </div>
+                        <span class="tag tag-topic">产品动态</span>
+                        <span class="tag tag-region">海外</span>
+                        <span class="title">OpenAI向Cursor等第三方开放GPT-5.3-Codex，并扩大安全缓解措施</span>
+                        <p style="font-size:14px; color:#444;">OpenAI开发者团队宣布开始逐步向Cursor、Visual Studio Code、Github等第三方合作伙伴开放GPT-5.3-Codex接口，允许开发者将更先进的代码理解能力集成到自有应用中，并将在未来几周扩大安全缓解措施。</p>
+                        <div class="footer"><span>来源: Twitter</span><a href="https://x.com/OpenAIDevs/status/2020921792941166928" target="_blank">原文链接 →</a></div>
+                    </div>
+                    
+                    <div class="card">
+                        <span class="tag tag-topic">产品动态</span>
+                        <span class="tag tag-region">海外</span>
+                        <span class="title">OpenAI将ChatGPT引入 300 万文职和军人使用的GenAI.mil平台，为该平台提供定制化AI技术支持</span>
+                        <p style="font-size:14px; color:#444;">OpenAI宣布将ChatGPT技术引入被300万文职和军人使用的GenAI.mil平台，为该平台提供定制化的生成式AI技术支持，旨在提升特定领域的办公效率与信息处理能力。</p>
+                        <div class="footer"><span>来源: OpenAI</span><a href="https://openai.com/index/bringing-chatgpt-to-genaimil/" target="_blank">原文链接 →</a></div>
+                    </div>
+                    
+                    <div class="card">
+                        <span class="tag tag-topic">产品动态</span>
+                        <span class="tag tag-region">海外</span>
+                        <span class="title">OpenAI正式在ChatGPT启动广告测试，面向免费和Go订阅层级成年用户</span>
+                        <p style="font-size:14px; color:#444;">OpenAI官方宣布正式在ChatGPT界面内启动广告展示测试，该测试主要面向免费层级和Go订阅层级的已登录成年用户，旨在探索除订阅制以外的商业化变现路径以平衡高昂的算力成本。</p>
+                        <div class="footer"><span>来源: Open AI</span><a href="https://openai.com/zh-Hans-CN/index/testing-ads-in-chatgpt/" target="_blank">原文链接 →</a></div>
+                    </div>
+                    
+                    <div class="card">
+                        <span class="tag tag-topic">商业动态</span>
+                        <span class="tag tag-region">海外</span>
+                        <span class="title">OpenAI拟完成千亿美元融资，ChatGPT月增长率重回10%以上</span>
+                        <p style="font-size:14px; color:#444;">OpenAI即将完成新一轮估值达千亿美元的融资，同时ChatGPT的月用户增长率重回10%以上的巅峰水平，进一步巩固了其在全球生成式AI领域的领导地位。</p>
+                        <div class="footer"><span>来源: The Decoder</span><a href="https://the-decoder.com/openai-says-chatgpt-is-growing-again-plans-new-model-this-week/" target="_blank">原文链接 →</a></div>
+                    </div>
+                    
+                </div>
+                
+                <div class="company-section">
+                    <h3 class="co-title">Anthropic</h3>
+                    
+                    <div class="card">
+                        <span class="tag tag-topic">商业动态</span>
+                        <span class="tag tag-region">海外</span>
+                        <span class="title">Anthropic聘请前谷歌高管，加速扩张数据中心基础设施建设</span>
+                        <p style="font-size:14px; color:#444;">AI巨头Anthropic计划大举扩张其数据中心基础设施，并聘请了多位前谷歌高管负责相关业务，以支撑其下一代大模型研发所需的庞大算力需求。</p>
+                        <div class="footer"><span>来源: The Information</span><a href="https://www.theinformation.com/newsletters/ai-infrastructure/anthropics-data-center-ambition-ex-google-execs-make-happen" target="_blank">原文链接 →</a></div>
+                    </div>
+                    
+                </div>
+                
+                <div class="company-section">
+                    <h3 class="co-title">Meta</h3>
+                    
+                    <div class="card">
+                        <span class="tag tag-topic">商业动态</span>
+                        <span class="tag tag-region">海外</span>
+                        <span class="title">欧盟威胁对Meta采取措施，防止其在WhatsApp屏蔽AI竞争对手</span>
+                        <p style="font-size:14px; color:#444;">欧盟监管机构威胁将对Meta采取临时措施，以阻止其在WhatsApp平台屏蔽竞争对手的AI服务，旨在维护欧洲市场的公平竞争环境并防止科技巨头垄断。</p>
+                        <div class="footer"><span>来源: Reuters</span><a href="https://www.reuters.com/world/eu-threatens-meta-with-interim-measure-blocking-ai-rivals-whatsapp-2026-02-09/" target="_blank">原文链接 →</a></div>
+                    </div>
+                    
+                </div>
+                
+                <div class="company-section">
+                    <h3 class="co-title">腾讯</h3>
+                    
+                    <div class="card">
+                        <span class="tag tag-topic">技术迭代</span>
+                        <span class="tag tag-region">国内</span>
+                        <span class="title">腾讯混元开源0.3B端侧模型，采用2Bit量化技术使内存占用仅600MB</span>
+                        <p style="font-size:14px; color:#444;">腾讯混元大模型团队宣布开源其0.3B参数的端侧模型，该模型采用了首个产业级2Bit量化技术，使内存占用仅为600MB，大幅降低了在移动端设备上运行大模型的门槛。</p>
+                        <div class="footer"><span>来源: 腾讯混元</span><a href="https://mp.weixin.qq.com/s/m3Sr4fRLAvc7C6MV1RR-ew" target="_blank">原文链接 →</a></div>
+                    </div>
+                    
+                </div>
+                
+                <div class="company-section">
+                    <h3 class="co-title">其他</h3>
+                    
+                    <div class="card">
+                        <span class="tag tag-topic">技术迭代</span>
+                        <span class="tag tag-region">国内</span>
+                        <span class="title">阿里巴巴旗下魔搭ModelScope推出OpenAPI服务，方便开发者通过标准接口调用社区内的各类优质AI模型</span>
+                        <p style="font-size:14px; color:#444;">阿里巴巴旗下的开源模型社区魔搭ModelScope正式推出OpenAPI服务，允许开发者通过标准化接口直接调用社区内托管的各类优质AI模型，极大地简化了AI能力的集成与部署流程。</p>
+                        <div class="footer"><span>来源: ModelScope</span><a href="https://mp.weixin.qq.com/s/zpq-GVFuY90DZXw0tC_2NA" target="_blank">原文链接 →</a></div>
+                    </div>
+                    
+                    <div class="card">
+                        <span class="tag tag-topic">技术迭代</span>
+                        <span class="tag tag-region">国内</span>
+                        <span class="title">浪潮信息团队推出Yuan 3.0 Flash，用RAPO+RIRM修正模型过度思考，推理token降低75%</span>
+                        <p style="font-size:14px; color:#444;">浪潮信息团队针对算力瓶颈推出Yuan 3.0 Flash模型，通过创新的RAPO和RIRM技术修正模型过度思考，使推理token消耗降低75%，在低算力环境下挑战了传统的Scaling Law。</p>
+                        <div class="footer"><span>来源: 新智元</span><a href="https://mp.weixin.qq.com/s/vtX3m8OiV9PKVVykoCmSqQ" target="_blank">原文链接 →</a></div>
+                    </div>
+                    
+                    <div class="card">
+                        <span class="tag tag-topic">技术迭代</span>
+                        <span class="tag tag-region">海外</span>
+                        <span class="title">Cursor发布Composer 1.5编程模型，提升复杂代码生成准确性</span>
+                        <p style="font-size:14px; color:#444;">AI代码编辑器Cursor正式发布Composer 1.5版本，通过优化模型架构和上下文理解能力提升了代码生成的准确性和复杂跨文件任务的处理能力，进一步优化了开发者的编程体验。</p>
+                        <div class="footer"><span>来源: Cursor</span><a href="https://cursor.com/cn/blog/composer-1-5" target="_blank">原文链接 →</a></div>
+                    </div>
+                    
+                    <div class="card">
+                        <span class="tag tag-topic">技术迭代</span>
+                        <span class="tag tag-region">海外</span>
+                        <span class="title">智谱GLM-5在多模态理解和逻辑推理方面有重大提升，总参数量或达700B</span>
+                        <p style="font-size:14px; color:#444;">智谱AI下一代大模型GLM-5的架构细节在开源社区曝光，信息显示其总参数量可能达到700B，在多模态理解、长文本处理及逻辑推理能力方面较前代有重大提升，标志着国产大模型的新突破。</p>
+                        <div class="footer"><span>来源: Twitter</span><a href="https://x.com/eliebakouch/status/2020824645868630065/photo/1" target="_blank">原文链接 →</a></div>
+                    </div>
+                    
+                    <div class="card">
+                        <span class="tag tag-topic">产品动态</span>
+                        <span class="tag tag-region">国内</span>
+                        <span class="title">可灵AI助力影视筹备视觉化，通过AI生成画面提升预演效率</span>
+                        <p style="font-size:14px; color:#444;">快手旗下的可灵AI在影视制作领域展现出强大实用性，能够通过AI生成高质量预演画面实现电影“未拍先见”，显著提升了影视筹备阶段的视觉化效率和沟通成本。</p>
+                        <div class="footer"><span>来源: 可灵AI</span><a href="https://mp.weixin.qq.com/s/wGBiJsRDtNw0K2Ii2QdXaw" target="_blank">原文链接 →</a></div>
+                    </div>
+                    
+                    <div class="card">
+                        <span class="tag tag-topic">产品动态</span>
+                        <span class="tag tag-region">国内</span>
+                        <span class="title">美团AI编程工具CatPaw全量开放，旨在通过智能代码补全和逻辑纠错显著提升开发效率</span>
+                        <p style="font-size:14px; color:#444;">美团自主研发的AI辅助编程工具CatPaw正式面向全量用户开放，支持多种编程语言和IDE环境，旨在通过智能代码补全和逻辑纠错显著提升开发者的编码效率和代码质量。</p>
+                        <div class="footer"><span>来源: Meituan CatPaw</span><a href="https://mp.weixin.qq.com/s/tLa2PFvcUP0X7GgZKztwsA" target="_blank">原文链接 →</a></div>
+                    </div>
+                    
+                    <div class="card">
+                        <span class="tag tag-topic">产品动态</span>
+                        <span class="tag tag-region">国内</span>
+                        <span class="title">小红书内测基于AI智能体的视频剪辑工具OpenStoryline，辅助内容创作</span>
+                        <p style="font-size:14px; color:#444;">小红书正在内测一款基于AI智能体的独立视频剪辑工具OpenStoryline，该产品主打AI辅助叙事与智能化剪辑，旨在降低创作门槛并丰富平台的内容生态。</p>
+                        <div class="footer"><span>来源: 财联社AI daily</span><a href="https://mp.weixin.qq.com/s/JfhOHaGe1LFQcH1DTKNjTg" target="_blank">原文链接 →</a></div>
+                    </div>
+                    
+                    <div class="card">
+                        <span class="tag tag-topic">产品动态</span>
+                        <span class="tag tag-region">国内</span>
+                        <span class="title">字节即梦Seedance 2.0紧急禁用真人素材，以规避深伪风险与监管</span>
+                        <p style="font-size:14px; color:#444;">字节跳动旗下即梦平台在Seedance 2.0模型爆火后紧急禁用了真人图片和视频素材的输入功能，旨在防止利用该模型生成误导性深度伪造内容，并响应国家关于AIGC内容安全与真人肖像保护的监管要求。</p>
+                        <div class="footer"><span>来源: TechWeb</span><a href="https://www.techweb.com.cn/internet/2026-02-10/2971793.shtml" target="_blank">原文链接 →</a></div>
+                    </div>
+                    
+                    <div class="card">
+                        <span class="tag tag-topic">产品动态</span>
+                        <span class="tag tag-region">海外</span>
+                        <span class="title">匿名模型Aurora Alpha于OpenRouter平台上线，该模型专为编码助手、实时对话应用和代理工作流构建，是为速度设计的推理模型</span>
+                        <p style="font-size:14px; color:#444;">模型聚合平台OpenRouter上线了匿名模型Aurora Alpha，该模型专为编码助手、实时对话应用和代理工作流构建，是一款在推理速度和响应效率上经过深度优化的推理模型。</p>
+                        <div class="footer"><span>来源: OpenRouter</span><a href="https://openrouter.ai/openrouter/aurora-alpha" target="_blank">原文链接 →</a></div>
+                    </div>
+                    
+                    <div class="card">
+                        <span class="tag tag-topic">产品动态</span>
+                        <span class="tag tag-region">海外</span>
+                        <span class="title">OpenClaw成为Github星标之王，并登顶AI产品榜·网站榜·全球增速榜，美团联合创始人王慧文公开发帖寻求投资合作</span>
+                        <p style="font-size:14px; color:#444;">OpenClaw凭借卓越性能成为Github星标之王并登顶AI产品榜全球增速榜，这一表现吸引了美团联合创始人王慧文深夜发帖表达强烈的投资意向，反映出资本市场对高性能AI框架的追捧。</p>
+                        <div class="footer"><span>来源: 36氪</span><a href="https://mp.weixin.qq.com/s/cJKSp0Phz76HMVlqfyDBKA" target="_blank">原文链接 →</a></div>
+                    </div>
+                    
+                    <div class="card">
+                        <span class="tag tag-topic">商业动态</span>
+                        <span class="tag tag-region">海外</span>
                         <span class="title">亚马逊拟建立AI内容授权市场，与出版商洽谈内容分成模式</span>
-                        <p class="content">亚马逊正与多家出版商洽谈建立AI内容市场，计划通过授权正版内容来训练其AI模型，并为出版商提供新的收入分成模式，以解决AI训练中的版权争议。</p>
-                        <div class="footer">
-                            <span>来源：The Information</span>
-                            <a href="https://www.theinformation.com/articles/amazon-discusses-ai-content-marketplace-publishers" class="btn-link" target="_blank">阅读原文 →</a>
-                        </div>
+                        <p style="font-size:14px; color:#444;">亚马逊正与多家出版商洽谈建立AI内容市场，计划通过授权正版内容来训练其AI模型，并为出版商提供新的收入分成模式，以解决AI训练中的版权争议。</p>
+                        <div class="footer"><span>来源: The Information</span><a href="https://www.theinformation.com/articles/amazon-discusses-ai-content-marketplace-publishers" target="_blank">原文链接 →</a></div>
                     </div>
                     
                     <div class="card">
-                        <div class="tag-group">
-                            <span class="tag tag-topic">商业动态</span>
-                            <span class="tag tag-region">海外</span>
-                        </div>
+                        <span class="tag tag-topic">商业动态</span>
+                        <span class="tag tag-region">海外</span>
                         <span class="title">微软遭遇第二次股票评级下调，机构警告AI投入成本与商业风险</span>
-                        <p class="content">微软公司近期遭遇第二次股票评级下调，投资机构Melius警告称，尽管AI前景广阔，但其高昂的算力投入成本和潜在的商业化变现风险已对公司短期利润构成压力。</p>
-                        <div class="footer">
-                            <span>来源：Bloomberg</span>
-                            <a href="https://www.bloomberg.com/news/articles/2026-02-09/microsoft-hit-with-second-downgrade-as-melius-warns-on-ai-risks?srnd=phx-ai" class="btn-link" target="_blank">阅读原文 →</a>
-                        </div>
+                        <p style="font-size:14px; color:#444;">微软公司近期遭遇第二次股票评级下调，投资机构Melius警告称，尽管AI前景广阔，但其高昂的算力投入成本和潜在的商业化变现风险已对公司短期利润构成压力。</p>
+                        <div class="footer"><span>来源: Bloomberg</span><a href="https://www.bloomberg.com/news/articles/2026-02-09/microsoft-hit-with-second-downgrade-as-melius-warns-on-ai-risks?srnd=phx-ai" target="_blank">原文链接 →</a></div>
                     </div>
                     
                     <div class="card">
-                        <div class="tag-group">
-                            <span class="tag tag-topic">春节活动</span>
-                            <span class="tag tag-region">国内</span>
-                        </div>
+                        <span class="tag tag-topic">春节活动</span>
+                        <span class="tag tag-region">国内</span>
                         <span class="title">字节豆包合作总台春晚开展运营活动，发放超10万份科技好礼</span>
-                        <p class="content">字节跳动旗下AI助手“豆包”宣布将与总台春晚达成合作，在春节期间通过互动活动向用户发放超过10万份科技礼品，旨在通过国民级舞台提升品牌知名度并加速AI应用的普及。</p>
-                        <div class="footer">
-                            <span>来源：豆包</span>
-                            <a href="https://mp.weixin.qq.com/s/LXa1fUQTsjxQuPWITE9oQw" class="btn-link" target="_blank">阅读原文 →</a>
-                        </div>
+                        <p style="font-size:14px; color:#444;">字节跳动旗下AI助手“豆包”宣布将与总台春晚达成合作，在春节期间通过互动活动向用户发放超过10万份科技礼品，旨在通过国民级舞台提升品牌知名度并加速AI应用的普及。</p>
+                        <div class="footer"><span>来源: 豆包</span><a href="https://mp.weixin.qq.com/s/LXa1fUQTsjxQuPWITE9oQw" target="_blank">原文链接 →</a></div>
                     </div>
                     
                     <div class="card">
-                        <div class="tag-group">
-                            <span class="tag tag-topic">数据洞察</span>
-                            <span class="tag tag-region">国内</span>
-                        </div>
+                        <span class="tag tag-topic">数据洞察</span>
+                        <span class="tag tag-region">国内</span>
                         <span class="title">2026年1月AI创作榜单即梦霸榜网页端，星流月活增长达150%</span>
-                        <p class="content">2026年1月AI创作榜单显示，字节旗下即梦在网页端表现强劲持续霸榜，而星流（StarFlow）凭借差异化功能实现月活跃用户增长150%，行业竞争格局正发生剧烈变动。</p>
-                        <div class="footer">
-                            <span>来源：量子位智库</span>
-                            <a href="https://mp.weixin.qq.com/s/qvPtEd7TnlEe0eQOnlAEOA" class="btn-link" target="_blank">阅读原文 →</a>
-                        </div>
+                        <p style="font-size:14px; color:#444;">2026年1月AI创作榜单显示，字节旗下即梦在网页端表现强劲持续霸榜，而星流（StarFlow）凭借差异化功能实现月活跃用户增长150%，行业竞争格局正发生剧烈变动。</p>
+                        <div class="footer"><span>来源: 量子位智库</span><a href="https://mp.weixin.qq.com/s/qvPtEd7TnlEe0eQOnlAEOA" target="_blank">原文链接 →</a></div>
                     </div>
                     
+                </div>
                 
             </div>
             
         </div>
 
-        <div id="filter" class="tab-content">
-            <div class="filter-section">
-                <div class="filter-item">
-                    <label>日期范围</label>
-                    <select id="f-date"><option value="all">全部日期</option><option value="2026/2/10">2026/2/10</option></select>
-                </div>
-                <div class="filter-item">
-                    <label>地区</label>
-                    <select id="f-region"><option value="all">全部地区</option><option value="海外">海外</option><option value="国内">国内</option></select>
-                </div>
-                <div class="filter-item">
-                    <label>公司主体</label>
-                    <select id="f-company"><option value="all">全部公司</option><option value="OpenAI">OpenAI</option><option value="Anthropic">Anthropic</option><option value="Google">Google</option><option value="Meta">Meta</option><option value="字节">字节</option><option value="阿里">阿里</option><option value="腾讯">腾讯</option><option value="其他">其他</option></select>
-                </div>
-                <div style="display: flex; align-items: flex-end;">
-                    <button onclick="applyFilter()" style="background:var(--primary); color:white; border:none; padding:10px 25px; border-radius:8px; cursor:pointer; font-weight:bold;">搜索</button>
-                </div>
+        <div id="filter-view" class="tab-pane">
+            <div class="filter-box">
+                <select id="f-date"><option value="all">所有日期</option><option value="2026/2/11">2026/2/11</option><option value="2026/2/10">2026/2/10</option></select>
+                <select id="f-region"><option value="all">所有地区</option><option value="海外">海外</option><option value="国内">国内</option></select>
+                <select id="f-co"><option value="all">所有公司</option><option value="OpenAI">OpenAI</option><option value="Anthropic">Anthropic</option><option value="Google">Google</option><option value="Meta">Meta</option><option value="字节">字节</option><option value="阿里">阿里</option><option value="腾讯">腾讯</option><option value="其他">其他</option></select>
+                <button onclick="doSearch()" style="background:var(--primary); color:white; border:none; padding:8px 20px; border-radius:6px; cursor:pointer;">立即筛选</button>
             </div>
-            <div id="filter-results"></div>
+            <div id="results"></div>
         </div>
     </div>
 
     <script>
-        const rawData = [{"日期": "2026/2/10", "海外/国内": "国内", "话题": "产品动态", "公司": "快手", "标题": "可灵AI助力影视筹备视觉化，通过AI生成画面提升预演效率", "核心内容": "快手旗下的可灵AI在影视制作领域展现出强大实用性，能够通过AI生成高质量预演画面实现电影“未拍先见”，显著提升了影视筹备阶段的视觉化效率和沟通成本。", "来源": "可灵AI", "链接": "https://mp.weixin.qq.com/s/wGBiJsRDtNw0K2Ii2QdXaw", "sort_score": [7, 1]}, {"日期": "2026/2/10", "海外/国内": "国内", "话题": "产品动态", "公司": "美团", "标题": "美团AI编程工具CatPaw全量开放，旨在通过智能代码补全和逻辑纠错显著提升开发效率", "核心内容": "美团自主研发的AI辅助编程工具CatPaw正式面向全量用户开放，支持多种编程语言和IDE环境，旨在通过智能代码补全和逻辑纠错显著提升开发者的编码效率和代码质量。", "来源": "Meituan CatPaw", "链接": "https://mp.weixin.qq.com/s/tLa2PFvcUP0X7GgZKztwsA", "sort_score": [7, 1]}, {"日期": "2026/2/10", "海外/国内": "国内", "话题": "产品动态", "公司": "小红书", "标题": "小红书内测基于AI智能体的视频剪辑工具OpenStoryline，辅助内容创作", "核心内容": "小红书正在内测一款基于AI智能体的独立视频剪辑工具OpenStoryline，该产品主打AI辅助叙事与智能化剪辑，旨在降低创作门槛并丰富平台的内容生态。", "来源": "财联社AI daily", "链接": "https://mp.weixin.qq.com/s/JfhOHaGe1LFQcH1DTKNjTg", "sort_score": [7, 1]}, {"日期": "2026/2/10", "海外/国内": "国内", "话题": "产品动态", "公司": "字节跳动", "标题": "字节即梦Seedance 2.0紧急禁用真人素材，以规避深伪风险与监管", "核心内容": "字节跳动旗下即梦平台在Seedance 2.0模型爆火后紧急禁用了真人图片和视频素材的输入功能，旨在防止利用该模型生成误导性深度伪造内容，并响应国家关于AIGC内容安全与真人肖像保护的监管要求。", "来源": "TechWeb", "链接": "https://www.techweb.com.cn/internet/2026-02-10/2971793.shtml", "sort_score": [7, 1]}, {"日期": "2026/2/10", "海外/国内": "国内", "话题": "春节活动", "公司": "字节跳动", "标题": "字节豆包合作总台春晚开展运营活动，发放超10万份科技好礼", "核心内容": "字节跳动旗下AI助手“豆包”宣布将与总台春晚达成合作，在春节期间通过互动活动向用户发放超过10万份科技礼品，旨在通过国民级舞台提升品牌知名度并加速AI应用的普及。", "来源": "豆包", "链接": "https://mp.weixin.qq.com/s/LXa1fUQTsjxQuPWITE9oQw", "sort_score": [7, 3]}, {"日期": "2026/2/10", "海外/国内": "国内", "话题": "技术迭代", "公司": "阿里巴巴", "标题": "阿里巴巴旗下魔搭ModelScope推出OpenAPI服务，方便开发者通过标准接口调用社区内的各类优质AI模型", "核心内容": "阿里巴巴旗下的开源模型社区魔搭ModelScope正式推出OpenAPI服务，允许开发者通过标准化接口直接调用社区内托管的各类优质AI模型，极大地简化了AI能力的集成与部署流程。", "来源": "ModelScope", "链接": "https://mp.weixin.qq.com/s/zpq-GVFuY90DZXw0tC_2NA", "sort_score": [7, 0]}, {"日期": "2026/2/10", "海外/国内": "国内", "话题": "技术迭代", "公司": "其他", "标题": "浪潮信息团队推出Yuan 3.0 Flash，用RAPO+RIRM修正模型过度思考，推理token降低75%", "核心内容": "浪潮信息团队针对算力瓶颈推出Yuan 3.0 Flash模型，通过创新的RAPO和RIRM技术修正模型过度思考，使推理token消耗降低75%，在低算力环境下挑战了传统的Scaling Law。", "来源": "新智元", "链接": "https://mp.weixin.qq.com/s/vtX3m8OiV9PKVVykoCmSqQ", "sort_score": [7, 0]}, {"日期": "2026/2/10", "海外/国内": "国内", "话题": "技术迭代", "公司": "腾讯", "标题": "腾讯混元开源0.3B端侧模型，采用2Bit量化技术使内存占用仅600MB", "核心内容": "腾讯混元大模型团队宣布开源其0.3B参数的端侧模型，该模型采用了首个产业级2Bit量化技术，使内存占用仅为600MB，大幅降低了在移动端设备上运行大模型的门槛。", "来源": "腾讯混元", "链接": "https://mp.weixin.qq.com/s/m3Sr4fRLAvc7C6MV1RR-ew", "sort_score": [6, 0]}, {"日期": "2026/2/10", "海外/国内": "国内", "话题": "数据洞察", "公司": "其他", "标题": "2026年1月AI创作榜单即梦霸榜网页端，星流月活增长达150%", "核心内容": "2026年1月AI创作榜单显示，字节旗下即梦在网页端表现强劲持续霸榜，而星流（StarFlow）凭借差异化功能实现月活跃用户增长150%，行业竞争格局正发生剧烈变动。", "来源": "量子位智库", "链接": "https://mp.weixin.qq.com/s/qvPtEd7TnlEe0eQOnlAEOA", "sort_score": [7, 4]}, {"日期": "2026/2/10", "海外/国内": "海外", "话题": "产品动态", "公司": "OpenAI", "标题": "OpenAI向Cursor等第三方开放GPT-5.3-Codex，并扩大安全缓解措施", "核心内容": "OpenAI开发者团队宣布开始逐步向Cursor、Visual Studio Code、Github等第三方合作伙伴开放GPT-5.3-Codex接口，允许开发者将更先进的代码理解能力集成到自有应用中，并将在未来几周扩大安全缓解措施。", "来源": "Twitter", "链接": "https://x.com/OpenAIDevs/status/2020921792941166928", "sort_score": [0, 1]}, {"日期": "2026/2/10", "海外/国内": "海外", "话题": "产品动态", "公司": "OpenAI", "标题": "OpenAI将ChatGPT引入 300 万文职和军人使用的GenAI.mil平台，为该平台提供定制化AI技术支持", "核心内容": "OpenAI宣布将ChatGPT技术引入被300万文职和军人使用的GenAI.mil平台，为该平台提供定制化的生成式AI技术支持，旨在提升特定领域的办公效率与信息处理能力。", "来源": "OpenAI", "链接": "https://openai.com/index/bringing-chatgpt-to-genaimil/", "sort_score": [0, 1]}, {"日期": "2026/2/10", "海外/国内": "海外", "话题": "产品动态", "公司": "其他", "标题": "匿名模型Aurora Alpha于OpenRouter平台上线，该模型专为编码助手、实时对话应用和代理工作流构建，是为速度设计的推理模型", "核心内容": "模型聚合平台OpenRouter上线了匿名模型Aurora Alpha，该模型专为编码助手、实时对话应用和代理工作流构建，是一款在推理速度和响应效率上经过深度优化的推理模型。", "来源": "OpenRouter", "链接": "https://openrouter.ai/openrouter/aurora-alpha", "sort_score": [7, 1]}, {"日期": "2026/2/10", "海外/国内": "海外", "话题": "技术迭代", "公司": "Cursor", "标题": "Cursor发布Composer 1.5编程模型，提升复杂代码生成准确性", "核心内容": "AI代码编辑器Cursor正式发布Composer 1.5版本，通过优化模型架构和上下文理解能力提升了代码生成的准确性和复杂跨文件任务的处理能力，进一步优化了开发者的编程体验。", "来源": "Cursor", "链接": "https://cursor.com/cn/blog/composer-1-5", "sort_score": [7, 0]}, {"日期": "2026/2/10", "海外/国内": "海外", "话题": "技术迭代", "公司": "OpenAI", "标题": "OpenAI的视频生成模型Sora上线Extensions续写功能，支持视频前后扩展与长视频创作", "核心内容": "OpenAI的视频生成模型Sora上线了Extensions续写功能，允许用户在已有视频片段的基础上进行前后双向的逻辑扩展，从而实现更长时长、更具叙事连贯性的AI视频创作。", "来源": "Twitter", "链接": "https://x.com/soraofficialapp/status/2021001367033425951", "sort_score": [0, 0]}, {"日期": "2026/2/10", "海外/国内": "海外", "话题": "技术迭代", "公司": "智谱", "标题": "智谱GLM-5在多模态理解和逻辑推理方面有重大提升，总参数量或达700B", "核心内容": "智谱AI下一代大模型GLM-5的架构细节在开源社区曝光，信息显示其总参数量可能达到700B，在多模态理解、长文本处理及逻辑推理能力方面较前代有重大提升，标志着国产大模型的新突破。", "来源": "Twitter", "链接": "https://x.com/eliebakouch/status/2020824645868630065/photo/1", "sort_score": [7, 0]}, {"日期": "2026/2/10", "海外/国内": "海外", "话题": "商业动态", "公司": "Amazon", "标题": "亚马逊拟建立AI内容授权市场，与出版商洽谈内容分成模式", "核心内容": "亚马逊正与多家出版商洽谈建立AI内容市场，计划通过授权正版内容来训练其AI模型，并为出版商提供新的收入分成模式，以解决AI训练中的版权争议。", "来源": "The Information", "链接": "https://www.theinformation.com/articles/amazon-discusses-ai-content-marketplace-publishers", "sort_score": [7, 2]}, {"日期": "2026/2/10", "海外/国内": "海外", "话题": "商业动态", "公司": "Anthropic", "标题": "Anthropic聘请前谷歌高管，加速扩张数据中心基础设施建设", "核心内容": "AI巨头Anthropic计划大举扩张其数据中心基础设施，并聘请了多位前谷歌高管负责相关业务，以支撑其下一代大模型研发所需的庞大算力需求。", "来源": "The Information", "链接": "https://www.theinformation.com/newsletters/ai-infrastructure/anthropics-data-center-ambition-ex-google-execs-make-happen", "sort_score": [1, 2]}, {"日期": "2026/2/10", "海外/国内": "海外", "话题": "商业动态", "公司": "Meta", "标题": "欧盟威胁对Meta采取措施，防止其在WhatsApp屏蔽AI竞争对手", "核心内容": "欧盟监管机构威胁将对Meta采取临时措施，以阻止其在WhatsApp平台屏蔽竞争对手的AI服务，旨在维护欧洲市场的公平竞争环境并防止科技巨头垄断。", "来源": "Reuters", "链接": "https://www.reuters.com/world/eu-threatens-meta-with-interim-measure-blocking-ai-rivals-whatsapp-2026-02-09/", "sort_score": [3, 2]}, {"日期": "2026/2/10", "海外/国内": "海外", "话题": "商业动态", "公司": "Microsoft", "标题": "微软遭遇第二次股票评级下调，机构警告AI投入成本与商业风险", "核心内容": "微软公司近期遭遇第二次股票评级下调，投资机构Melius警告称，尽管AI前景广阔，但其高昂的算力投入成本和潜在的商业化变现风险已对公司短期利润构成压力。", "来源": "Bloomberg", "链接": "https://www.bloomberg.com/news/articles/2026-02-09/microsoft-hit-with-second-downgrade-as-melius-warns-on-ai-risks?srnd=phx-ai", "sort_score": [7, 2]}, {"日期": "2026/2/10", "海外/国内": "海外", "话题": "产品动态", "公司": "OpenAI", "标题": "OpenAI正式在ChatGPT启动广告测试，面向免费和Go订阅层级成年用户", "核心内容": "OpenAI官方宣布正式在ChatGPT界面内启动广告展示测试，该测试主要面向免费层级和Go订阅层级的已登录成年用户，旨在探索除订阅制以外的商业化变现路径以平衡高昂的算力成本。", "来源": "Open AI", "链接": "https://openai.com/zh-Hans-CN/index/testing-ads-in-chatgpt/", "sort_score": [0, 1]}, {"日期": "2026/2/10", "海外/国内": "海外", "话题": "商业动态", "公司": "OpenAI", "标题": "OpenAI拟完成千亿美元融资，ChatGPT月增长率重回10%以上", "核心内容": "OpenAI即将完成新一轮估值达千亿美元的融资，同时ChatGPT的月用户增长率重回10%以上的巅峰水平，进一步巩固了其在全球生成式AI领域的领导地位。", "来源": "The Decoder", "链接": "https://the-decoder.com/openai-says-chatgpt-is-growing-again-plans-new-model-this-week/", "sort_score": [0, 2]}, {"日期": "2026/2/10", "海外/国内": "海外", "话题": "产品动态", "公司": "OpenClaw", "标题": "OpenClaw成为Github星标之王，并登顶AI产品榜·网站榜·全球增速榜，美团联合创始人王慧文公开发帖寻求投资合作", "核心内容": "OpenClaw凭借卓越性能成为Github星标之王并登顶AI产品榜全球增速榜，这一表现吸引了美团联合创始人王慧文深夜发帖表达强烈的投资意向，反映出资本市场对高性能AI框架的追捧。", "来源": "36氪", "链接": "https://mp.weixin.qq.com/s/cJKSp0Phz76HMVlqfyDBKA", "sort_score": [7, 1]}];
+        const rawData = [{"日期": "2026/2/10", "海外/国内": "国内", "话题": "产品动态", "公司": "快手", "标题": "可灵AI助力影视筹备视觉化，通过AI生成画面提升预演效率", "核心内容": "快手旗下的可灵AI在影视制作领域展现出强大实用性，能够通过AI生成高质量预演画面实现电影“未拍先见”，显著提升了影视筹备阶段的视觉化效率和沟通成本。", "来源": "可灵AI", "链接": "https://mp.weixin.qq.com/s/wGBiJsRDtNw0K2Ii2QdXaw", "sort_score": [7, 1]}, {"日期": "2026/2/10", "海外/国内": "国内", "话题": "产品动态", "公司": "美团", "标题": "美团AI编程工具CatPaw全量开放，旨在通过智能代码补全和逻辑纠错显著提升开发效率", "核心内容": "美团自主研发的AI辅助编程工具CatPaw正式面向全量用户开放，支持多种编程语言和IDE环境，旨在通过智能代码补全和逻辑纠错显著提升开发者的编码效率和代码质量。", "来源": "Meituan CatPaw", "链接": "https://mp.weixin.qq.com/s/tLa2PFvcUP0X7GgZKztwsA", "sort_score": [7, 1]}, {"日期": "2026/2/10", "海外/国内": "国内", "话题": "产品动态", "公司": "小红书", "标题": "小红书内测基于AI智能体的视频剪辑工具OpenStoryline，辅助内容创作", "核心内容": "小红书正在内测一款基于AI智能体的独立视频剪辑工具OpenStoryline，该产品主打AI辅助叙事与智能化剪辑，旨在降低创作门槛并丰富平台的内容生态。", "来源": "财联社AI daily", "链接": "https://mp.weixin.qq.com/s/JfhOHaGe1LFQcH1DTKNjTg", "sort_score": [7, 1]}, {"日期": "2026/2/10", "海外/国内": "国内", "话题": "产品动态", "公司": "字节跳动", "标题": "字节即梦Seedance 2.0紧急禁用真人素材，以规避深伪风险与监管", "核心内容": "字节跳动旗下即梦平台在Seedance 2.0模型爆火后紧急禁用了真人图片和视频素材的输入功能，旨在防止利用该模型生成误导性深度伪造内容，并响应国家关于AIGC内容安全与真人肖像保护的监管要求。", "来源": "TechWeb", "链接": "https://www.techweb.com.cn/internet/2026-02-10/2971793.shtml", "sort_score": [7, 1]}, {"日期": "2026/2/10", "海外/国内": "国内", "话题": "春节活动", "公司": "字节跳动", "标题": "字节豆包合作总台春晚开展运营活动，发放超10万份科技好礼", "核心内容": "字节跳动旗下AI助手“豆包”宣布将与总台春晚达成合作，在春节期间通过互动活动向用户发放超过10万份科技礼品，旨在通过国民级舞台提升品牌知名度并加速AI应用的普及。", "来源": "豆包", "链接": "https://mp.weixin.qq.com/s/LXa1fUQTsjxQuPWITE9oQw", "sort_score": [7, 3]}, {"日期": "2026/2/10", "海外/国内": "国内", "话题": "技术迭代", "公司": "阿里巴巴", "标题": "阿里巴巴旗下魔搭ModelScope推出OpenAPI服务，方便开发者通过标准接口调用社区内的各类优质AI模型", "核心内容": "阿里巴巴旗下的开源模型社区魔搭ModelScope正式推出OpenAPI服务，允许开发者通过标准化接口直接调用社区内托管的各类优质AI模型，极大地简化了AI能力的集成与部署流程。", "来源": "ModelScope", "链接": "https://mp.weixin.qq.com/s/zpq-GVFuY90DZXw0tC_2NA", "sort_score": [7, 0]}, {"日期": "2026/2/10", "海外/国内": "国内", "话题": "技术迭代", "公司": "其他", "标题": "浪潮信息团队推出Yuan 3.0 Flash，用RAPO+RIRM修正模型过度思考，推理token降低75%", "核心内容": "浪潮信息团队针对算力瓶颈推出Yuan 3.0 Flash模型，通过创新的RAPO和RIRM技术修正模型过度思考，使推理token消耗降低75%，在低算力环境下挑战了传统的Scaling Law。", "来源": "新智元", "链接": "https://mp.weixin.qq.com/s/vtX3m8OiV9PKVVykoCmSqQ", "sort_score": [7, 0]}, {"日期": "2026/2/10", "海外/国内": "国内", "话题": "技术迭代", "公司": "腾讯", "标题": "腾讯混元开源0.3B端侧模型，采用2Bit量化技术使内存占用仅600MB", "核心内容": "腾讯混元大模型团队宣布开源其0.3B参数的端侧模型，该模型采用了首个产业级2Bit量化技术，使内存占用仅为600MB，大幅降低了在移动端设备上运行大模型的门槛。", "来源": "腾讯混元", "链接": "https://mp.weixin.qq.com/s/m3Sr4fRLAvc7C6MV1RR-ew", "sort_score": [6, 0]}, {"日期": "2026/2/10", "海外/国内": "国内", "话题": "数据洞察", "公司": "其他", "标题": "2026年1月AI创作榜单即梦霸榜网页端，星流月活增长达150%", "核心内容": "2026年1月AI创作榜单显示，字节旗下即梦在网页端表现强劲持续霸榜，而星流（StarFlow）凭借差异化功能实现月活跃用户增长150%，行业竞争格局正发生剧烈变动。", "来源": "量子位智库", "链接": "https://mp.weixin.qq.com/s/qvPtEd7TnlEe0eQOnlAEOA", "sort_score": [7, 4]}, {"日期": "2026/2/10", "海外/国内": "海外", "话题": "产品动态", "公司": "OpenAI", "标题": "OpenAI向Cursor等第三方开放GPT-5.3-Codex，并扩大安全缓解措施", "核心内容": "OpenAI开发者团队宣布开始逐步向Cursor、Visual Studio Code、Github等第三方合作伙伴开放GPT-5.3-Codex接口，允许开发者将更先进的代码理解能力集成到自有应用中，并将在未来几周扩大安全缓解措施。", "来源": "Twitter", "链接": "https://x.com/OpenAIDevs/status/2020921792941166928", "sort_score": [0, 1]}, {"日期": "2026/2/10", "海外/国内": "海外", "话题": "产品动态", "公司": "OpenAI", "标题": "OpenAI将ChatGPT引入 300 万文职和军人使用的GenAI.mil平台，为该平台提供定制化AI技术支持", "核心内容": "OpenAI宣布将ChatGPT技术引入被300万文职和军人使用的GenAI.mil平台，为该平台提供定制化的生成式AI技术支持，旨在提升特定领域的办公效率与信息处理能力。", "来源": "OpenAI", "链接": "https://openai.com/index/bringing-chatgpt-to-genaimil/", "sort_score": [0, 1]}, {"日期": "2026/2/10", "海外/国内": "海外", "话题": "产品动态", "公司": "其他", "标题": "匿名模型Aurora Alpha于OpenRouter平台上线，该模型专为编码助手、实时对话应用和代理工作流构建，是为速度设计的推理模型", "核心内容": "模型聚合平台OpenRouter上线了匿名模型Aurora Alpha，该模型专为编码助手、实时对话应用和代理工作流构建，是一款在推理速度和响应效率上经过深度优化的推理模型。", "来源": "OpenRouter", "链接": "https://openrouter.ai/openrouter/aurora-alpha", "sort_score": [7, 1]}, {"日期": "2026/2/10", "海外/国内": "海外", "话题": "技术迭代", "公司": "Cursor", "标题": "Cursor发布Composer 1.5编程模型，提升复杂代码生成准确性", "核心内容": "AI代码编辑器Cursor正式发布Composer 1.5版本，通过优化模型架构和上下文理解能力提升了代码生成的准确性和复杂跨文件任务的处理能力，进一步优化了开发者的编程体验。", "来源": "Cursor", "链接": "https://cursor.com/cn/blog/composer-1-5", "sort_score": [7, 0]}, {"日期": "2026/2/10", "海外/国内": "海外", "话题": "技术迭代", "公司": "OpenAI", "标题": "OpenAI的视频生成模型Sora上线Extensions续写功能，支持视频前后扩展与长视频创作", "核心内容": "OpenAI的视频生成模型Sora上线了Extensions续写功能，允许用户在已有视频片段的基础上进行前后双向的逻辑扩展，从而实现更长时长、更具叙事连贯性的AI视频创作。", "来源": "Twitter", "链接": "https://x.com/soraofficialapp/status/2021001367033425951", "sort_score": [0, 0]}, {"日期": "2026/2/10", "海外/国内": "海外", "话题": "技术迭代", "公司": "智谱", "标题": "智谱GLM-5在多模态理解和逻辑推理方面有重大提升，总参数量或达700B", "核心内容": "智谱AI下一代大模型GLM-5的架构细节在开源社区曝光，信息显示其总参数量可能达到700B，在多模态理解、长文本处理及逻辑推理能力方面较前代有重大提升，标志着国产大模型的新突破。", "来源": "Twitter", "链接": "https://x.com/eliebakouch/status/2020824645868630065/photo/1", "sort_score": [7, 0]}, {"日期": "2026/2/10", "海外/国内": "海外", "话题": "商业动态", "公司": "Amazon", "标题": "亚马逊拟建立AI内容授权市场，与出版商洽谈内容分成模式", "核心内容": "亚马逊正与多家出版商洽谈建立AI内容市场，计划通过授权正版内容来训练其AI模型，并为出版商提供新的收入分成模式，以解决AI训练中的版权争议。", "来源": "The Information", "链接": "https://www.theinformation.com/articles/amazon-discusses-ai-content-marketplace-publishers", "sort_score": [7, 2]}, {"日期": "2026/2/10", "海外/国内": "海外", "话题": "商业动态", "公司": "Anthropic", "标题": "Anthropic聘请前谷歌高管，加速扩张数据中心基础设施建设", "核心内容": "AI巨头Anthropic计划大举扩张其数据中心基础设施，并聘请了多位前谷歌高管负责相关业务，以支撑其下一代大模型研发所需的庞大算力需求。", "来源": "The Information", "链接": "https://www.theinformation.com/newsletters/ai-infrastructure/anthropics-data-center-ambition-ex-google-execs-make-happen", "sort_score": [1, 2]}, {"日期": "2026/2/10", "海外/国内": "海外", "话题": "商业动态", "公司": "Meta", "标题": "欧盟威胁对Meta采取措施，防止其在WhatsApp屏蔽AI竞争对手", "核心内容": "欧盟监管机构威胁将对Meta采取临时措施，以阻止其在WhatsApp平台屏蔽竞争对手的AI服务，旨在维护欧洲市场的公平竞争环境并防止科技巨头垄断。", "来源": "Reuters", "链接": "https://www.reuters.com/world/eu-threatens-meta-with-interim-measure-blocking-ai-rivals-whatsapp-2026-02-09/", "sort_score": [3, 2]}, {"日期": "2026/2/10", "海外/国内": "海外", "话题": "商业动态", "公司": "Microsoft", "标题": "微软遭遇第二次股票评级下调，机构警告AI投入成本与商业风险", "核心内容": "微软公司近期遭遇第二次股票评级下调，投资机构Melius警告称，尽管AI前景广阔，但其高昂的算力投入成本和潜在的商业化变现风险已对公司短期利润构成压力。", "来源": "Bloomberg", "链接": "https://www.bloomberg.com/news/articles/2026-02-09/microsoft-hit-with-second-downgrade-as-melius-warns-on-ai-risks?srnd=phx-ai", "sort_score": [7, 2]}, {"日期": "2026/2/10", "海外/国内": "海外", "话题": "产品动态", "公司": "OpenAI", "标题": "OpenAI正式在ChatGPT启动广告测试，面向免费和Go订阅层级成年用户", "核心内容": "OpenAI官方宣布正式在ChatGPT界面内启动广告展示测试，该测试主要面向免费层级和Go订阅层级的已登录成年用户，旨在探索除订阅制以外的商业化变现路径以平衡高昂的算力成本。", "来源": "Open AI", "链接": "https://openai.com/zh-Hans-CN/index/testing-ads-in-chatgpt/", "sort_score": [0, 1]}, {"日期": "2026/2/10", "海外/国内": "海外", "话题": "商业动态", "公司": "OpenAI", "标题": "OpenAI拟完成千亿美元融资，ChatGPT月增长率重回10%以上", "核心内容": "OpenAI即将完成新一轮估值达千亿美元的融资，同时ChatGPT的月用户增长率重回10%以上的巅峰水平，进一步巩固了其在全球生成式AI领域的领导地位。", "来源": "The Decoder", "链接": "https://the-decoder.com/openai-says-chatgpt-is-growing-again-plans-new-model-this-week/", "sort_score": [0, 2]}, {"日期": "2026/2/10", "海外/国内": "海外", "话题": "产品动态", "公司": "OpenClaw", "标题": "OpenClaw成为Github星标之王，并登顶AI产品榜·网站榜·全球增速榜，美团联合创始人王慧文公开发帖寻求投资合作", "核心内容": "OpenClaw凭借卓越性能成为Github星标之王并登顶AI产品榜全球增速榜，这一表现吸引了美团联合创始人王慧文深夜发帖表达强烈的投资意向，反映出资本市场对高性能AI框架的追捧。", "来源": "36氪", "链接": "https://mp.weixin.qq.com/s/cJKSp0Phz76HMVlqfyDBKA", "sort_score": [7, 1]}, {"日期": "2026/2/11", "海外/国内": "海外", "话题": "产品动态", "公司": "OpenClaw", "标题": "OpenClaw成为Github星标之王，并登顶AI产品榜·网站榜·全球增速榜，美团联合创始人王慧文公开发帖寻求投资合作", "核心内容": "OpenClaw凭借卓越性能成为Github星标之王并登顶AI产品榜全球增速榜，这一表现吸引了美团联合创始人王慧文深夜发帖表达强烈的投资意向，反映出资本市场对高性能AI框架的追捧。", "来源": "36氪", "链接": "https://mp.weixin.qq.com/s/cJKSp0Phz76HMVlqfyDBKA", "sort_score": [7, 1]}];
 
-        function switchTab(evt, tabId) {
-            document.querySelectorAll('.tab-btn, .tab-content').forEach(el => el.classList.remove('active'));
-            evt.currentTarget.classList.add('active');
+        function openTab(evt, tabId) {
+            document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
             document.getElementById(tabId).classList.add('active');
-            if(tabId === 'filter') applyFilter();
+            evt.currentTarget.classList.add('active');
+            if(tabId === 'filter-view') doSearch();
         }
 
-        function showDate(d) {
-            document.querySelectorAll('.day-group').forEach(el => el.style.display = 'none');
-            document.getElementById('group-' + d).style.display = 'block';
+        function changeDate(d) {
+            document.querySelectorAll('.date-group').forEach(g => g.style.display = 'none');
+            document.getElementById('date-' + d).style.display = 'block';
         }
 
-        function applyFilter() {
+        function doSearch() {
             const d = document.getElementById('f-date').value;
             const r = document.getElementById('f-region').value;
-            const c = document.getElementById('f-company').value;
+            const c = document.getElementById('f-co').value;
             
-            let filtered = rawData.filter(it => {
-                return (d === 'all' || it['日期'] == d) &&
-                       (r === 'all' || it['海外/国内'] == r) &&
-                       (c === 'all' || it['公司'] == c);
-            });
+            const filtered = rawData.filter(it => 
+                (d === 'all' || it['日期'] == d) &&
+                (r === 'all' || it['海外/国内'] == r) &&
+                (c === 'all' || it['公司'] == c)
+            );
 
-            const container = document.getElementById('filter-results');
-            container.innerHTML = filtered.length ? '' : '<p style="text-align:center; color:#999; margin-top:50px;">未找到匹配的数据条目</p>';
+            const resDiv = document.getElementById('results');
+            resDiv.innerHTML = filtered.length ? '' : '<p style="text-align:center;color:#999;">无匹配结果</p>';
             
             filtered.forEach(it => {
-                container.innerHTML += `
+                resDiv.innerHTML += `
                     <div class="card">
-                        <div class="tag-group">
-                            <span class="tag tag-topic">${it['话题']}</span>
-                            <span class="tag tag-date">${it['日期']}</span>
-                            <span class="tag tag-region">${it['海外/国内']}</span>
-                        </div>
+                        <span class="tag tag-topic">${it['话题']}</span>
+                        <span class="tag tag-region">${it['海外/国内']}</span>
+                        <span class="tag" style="background:#eee">${it['日期']}</span>
                         <span class="title">${it['标题']}</span>
-                        <p class="content">${it['核心内容']}</p>
-                        <div class="footer">
-                            <span>公司：<b>${it['公司']}</b> | 来源：${it['来源']}</span>
-                            <a href="${it['链接']}" class="btn-link" target="_blank">阅读原文 →</a>
-                        </div>
+                        <p style="font-size:14px;color:#444;">${it['核心内容']}</p>
+                        <div class="footer"><span>公司: ${it['公司']} | 来源: ${it['来源']}</span><a href="${it['链接']}" target="_blank">原文 →</a></div>
                     </div>`;
             });
         }
