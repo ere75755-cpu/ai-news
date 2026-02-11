@@ -12,6 +12,9 @@ def main():
     try:
         df = pd.read_csv(SHEET_URL)
         df.columns = [c.strip() for c in df.columns]
+        # 处理“是否头条”字段，确保其为整数
+        if '是否头条' in df.columns:
+            df['是否头条'] = pd.to_numeric(df['是否头条'], errors='coerce').fillna(0).astype(int)
         df = df.fillna("")
     except Exception as e:
         print(f"Error: {e}")
@@ -29,10 +32,18 @@ def main():
     
     all_dates = df_sorted['日期'].unique().tolist()
     
-    # 4. 组织 Tab 1 数据
+    # 4. 组织展示数据 (Tab 1 增加头条逻辑)
     news_data = {}
+    headlines_data = {}
     for date in all_dates:
         day_df = df_sorted[df_sorted['日期'] == date]
+        
+        # 提取该日期的今日头条 (1为头条)
+        if '是否头条' in day_df.columns:
+            headlines_data[date] = day_df[day_df['是否头条'] == 1].to_dict('records')
+        else:
+            headlines_data[date] = []
+
         news_data[date] = {}
         for company in COMPANY_ORDER:
             if company == '其他':
@@ -51,9 +62,9 @@ def main():
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>AI Industry Dashboard</title>
+        <title>AI News速览</title>
         <style>
-            :root { --primary: #1a73e8; --bg: #f8f9fa; --text: #202124; }
+            :root { --primary: #1a73e8; --bg: #f8f9fa; --text: #202124; --headline-bg: #1a1c1e; }
             body { font-family: sans-serif; background: var(--bg); color: var(--text); margin: 0; }
             .container { max-width: 900px; margin: auto; padding: 20px; }
             
@@ -64,6 +75,14 @@ def main():
             
             .tab-pane { display: none; padding: 10px; }
             .tab-pane.active { display: block; }
+
+            /* Headline Section */
+            .headline-section { background: var(--headline-bg); color: #fff; padding: 20px; border-radius: 12px; margin-bottom: 25px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+            .headline-label { background: #f4b400; color: #000; padding: 2px 8px; font-size: 11px; font-weight: bold; border-radius: 4px; display: inline-block; margin-bottom: 15px; }
+            .hl-item { border-bottom: 1px solid #3c4043; padding: 12px 0; }
+            .hl-item:last-child { border-bottom: none; }
+            .hl-title { font-size: 18px; font-weight: bold; color: #fff; text-decoration: none; display: block; margin-bottom: 5px; }
+            .hl-content { color: #bdc1c6; font-size: 14px; margin-bottom: 8px; }
 
             /* Filter Bar */
             .filter-box { background: #fff; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; }
@@ -83,7 +102,7 @@ def main():
     </head>
     <body>
     <div class="container">
-        <header style="text-align:center; margin-bottom:20px;"><h1>🤖 AI 行业动态仪表盘</h1></header>
+        <header style="text-align:center; margin-bottom:20px;"><h1>AI News速览</h1></header>
         
         <div class="tabs-nav">
             <div class="tab-btn active" onclick="openTab(event, 'daily-view')">每日综述</div>
@@ -91,14 +110,29 @@ def main():
         </div>
 
         <div id="daily-view" class="tab-pane active">
-            <div style="margin-bottom:20px;">
+            <div style="text-align: right; margin-bottom:20px;">
                 📅 切换日期: <select onchange="changeDate(this.value)">
                     {% for d in dates %}<option value="{{d}}">{{d}}</option>{% endfor %}
                 </select>
             </div>
-            {% for d, cos in news.items() %}
+            
+            {% for d in dates %}
             <div id="date-{{d}}" class="date-group" style="display: {{ 'block' if loop.first else 'none' }}">
-                {% for co, items in cos.items() %}
+                
+                {% if headlines_data[d] %}
+                <div class="headline-section">
+                    <span class="headline-label">今日头条 TOP NEWS</span>
+                    {% for hl in headlines_data[d] %}
+                    <div class="hl-item">
+                        <a href="{{hl['链接']}}" target="_blank" class="hl-title">{{hl['标题']}}</a>
+                        <p class="hl-content">{{hl['核心内容']}}</p>
+                        <div style="font-size:12px; color:#888;">主体: {{hl['公司']}} | 来源: {{hl['来源']}}</div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                {% for co, items in news_data[d].items() %}
                 <div class="company-section">
                     <h3 class="co-title">{{co}}</h3>
                     {% for it in items %}
@@ -177,6 +211,7 @@ def main():
     html = Template(template_str).render(
         dates=all_dates, 
         news=news_data, 
+        headlines_data=headlines_data,
         json_data=json_data, 
         company_list=COMPANY_ORDER
     )
