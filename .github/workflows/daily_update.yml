@@ -1,0 +1,29 @@
+name: Daily AI News Update
+on:
+  schedule:
+    # 这里的 cron 使用的是 UTC 时间
+    # 北京时间 (UTC+8) 19:00 = UTC 时间 11:00
+    - cron: '0 11 * * *' 
+  workflow_dispatch: # 允许你手动点击按钮立即更新
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.9'
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Build index.html
+        run: python build_site.py
+      - name: Commit and Push
+        run: |
+          git config --global user.name "AI Analyst"
+          git config --global user.email "analyst@ai.com"
+          git add index.html
+          git commit -m "Auto-update news at 19:00 CST" || exit 0
+          git push
