@@ -8,16 +8,18 @@ COMPANY_ORDER = ['OpenAI', 'Anthropic', 'Google', 'Meta', '字节', '阿里', '�
 TOPIC_ORDER = ['技术迭代', '产品动态', '商业动态', '春节活动', '数据洞察']
 
 def main():
-    # 2. 读取数据
+    # 2. 读取并清洗数据
     try:
         df = pd.read_csv(SHEET_URL)
         df.columns = [c.strip() for c in df.columns]
-        # 处理“是否头条”字段，确保其为整数
+        # 处理“是否头条”字段
         if '是否头条' in df.columns:
             df['是否头条'] = pd.to_numeric(df['是否头条'], errors='coerce').fillna(0).astype(int)
+        else:
+            df['是否头条'] = 0
         df = df.fillna("")
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"数据读取失败: {e}")
         return
 
     # 3. 排序逻辑
@@ -31,27 +33,24 @@ def main():
     df_sorted = df.sort_values(by=['日期', 'sort_score'], ascending=[False, True])
     
     all_dates = df_sorted['日期'].unique().tolist()
-    
-    # 4. 组织展示数据 (Tab 1 增加头条逻辑)
-    news_data = {}
-    headlines_data = {}
+
+    # 4. 组织展示数据 (今日头条 + 按公司汇总)
+    news_data_map = {}
+    headlines_map = {}
     for date in all_dates:
         day_df = df_sorted[df_sorted['日期'] == date]
         
         # 提取该日期的今日头条 (1为头条)
-        if '是否头条' in day_df.columns:
-            headlines_data[date] = day_df[day_df['是否头条'] == 1].to_dict('records')
-        else:
-            headlines_data[date] = []
+        headlines_map[date] = day_df[day_df['是否头条'] == 1].to_dict('records')
 
-        news_data[date] = {}
+        news_data_map[date] = {}
         for company in COMPANY_ORDER:
             if company == '其他':
                 comp_df = day_df[~day_df['公司'].isin(COMPANY_ORDER[:-1])]
             else:
                 comp_df = day_df[day_df['公司'] == company]
             if not comp_df.empty:
-                news_data[date][company] = comp_df.to_dict('records')
+                news_data_map[date][company] = comp_df.to_dict('records')
 
     # 5. 全量 JSON
     json_data = json.dumps(df.to_dict('records'), ensure_ascii=False)
@@ -77,27 +76,23 @@ def main():
             .tab-pane.active { display: block; }
 
             /* Headline Section */
-            .headline-section { background: var(--headline-bg); color: #fff; padding: 20px; border-radius: 12px; margin-bottom: 25px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
-            .headline-label { background: #f4b400; color: #000; padding: 2px 8px; font-size: 11px; font-weight: bold; border-radius: 4px; display: inline-block; margin-bottom: 15px; }
-            .hl-item { border-bottom: 1px solid #3c4043; padding: 12px 0; }
+            .headline-section { background: var(--headline-bg); color: #fff; padding: 25px; border-radius: 12px; margin-bottom: 30px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+            .headline-label { background: #f4b400; color: #000; padding: 3px 10px; font-size: 11px; font-weight: bold; border-radius: 4px; display: inline-block; margin-bottom: 20px; }
+            .hl-item { border-bottom: 1px solid #3c4043; padding: 15px 0; }
             .hl-item:last-child { border-bottom: none; }
-            .hl-title { font-size: 18px; font-weight: bold; color: #fff; text-decoration: none; display: block; margin-bottom: 5px; }
-            .hl-content { color: #bdc1c6; font-size: 14px; margin-bottom: 8px; }
+            .hl-title { font-size: 20px; font-weight: bold; color: #fff; text-decoration: none; display: block; margin-bottom: 8px; }
+            .hl-content { color: #bdc1c6; font-size: 15px; margin-bottom: 12px; }
 
-            /* Filter Bar */
-            .filter-box { background: #fff; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; }
-            .filter-box select { flex: 1; min-width: 120px; padding: 8px; border-radius: 6px; border: 1px solid #ddd; }
-            
             /* Cards */
             .company-section { margin-top: 30px; }
-            .co-title { color: var(--primary); border-left: 5px solid var(--primary); padding-left: 10px; margin-bottom: 15px; }
-            .card { background: #fff; border: 1px solid #eee; padding: 18px; margin-bottom: 12px; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+            .co-title { color: var(--primary); border-left: 5px solid var(--primary); padding-left: 10px; margin-bottom: 15px; font-size: 22px; }
+            .card { background: #fff; border: 1px solid #eee; padding: 20px; margin-bottom: 15px; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
             .tag { font-size: 11px; padding: 2px 8px; border-radius: 4px; font-weight: bold; margin-right: 5px; }
             .tag-topic { background: #e8f0fe; color: var(--primary); }
             .tag-region { background: #fef7e0; color: #f29900; }
-            .title { font-size: 17px; font-weight: bold; display: block; margin: 10px 0; }
-            .footer { font-size: 12px; color: #888; display: flex; justify-content: space-between; margin-top: 10px; border-top: 1px solid #f9f9f9; padding-top: 10px; }
-            a { color: var(--primary); text-decoration: none; }
+            .title { font-size: 18px; font-weight: bold; display: block; margin: 10px 0; }
+            .footer { font-size: 13px; color: #888; display: flex; justify-content: space-between; margin-top: 15px; border-top: 1px solid #f9f9f9; padding-top: 12px; }
+            a { color: var(--primary); text-decoration: none; font-weight: 500; }
         </style>
     </head>
     <body>
@@ -140,8 +135,8 @@ def main():
                         <span class="tag tag-topic">{{it['话题']}}</span>
                         <span class="tag tag-region">{{it['海外/国内']}}</span>
                         <span class="title">{{it['标题']}}</span>
-                        <p style="font-size:14px; color:#444;">{{it['核心内容']}}</p>
-                        <div class="footer"><span>来源: {{it['来源']}}</span><a href="{{it['链接']}}" target="_blank">原文链接 →</a></div>
+                        <p style="font-size:15px; color:#444;">{{it['核心内容']}}</p>
+                        <div class="footer"><span>来源: {{it['来源']}}</span><a href="{{it['链接']}}" target="_blank">阅读原文 →</a></div>
                     </div>
                     {% endfor %}
                 </div>
@@ -151,11 +146,11 @@ def main():
         </div>
 
         <div id="filter-view" class="tab-pane">
-            <div class="filter-box">
-                <select id="f-date"><option value="all">所有日期</option>{% for d in dates %}<option value="{{d}}">{{d}}</option>{% endfor %}</select>
-                <select id="f-region"><option value="all">所有地区</option><option value="海外">海外</option><option value="国内">国内</option></select>
-                <select id="f-co"><option value="all">所有公司</option>{% for c in company_list %}<option value="{{c}}">{{c}}</option>{% endfor %}</select>
-                <button onclick="doSearch()" style="background:var(--primary); color:white; border:none; padding:8px 20px; border-radius:6px; cursor:pointer;">立即筛选</button>
+            <div style="background:#fff; padding:20px; border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,0.1); display:flex; gap:10px; flex-wrap:wrap; margin-bottom:20px;">
+                <select id="f-date" style="flex:1; min-width:120px; padding:8px; border-radius:6px; border:1px solid #ddd;"><option value="all">所有日期</option>{% for d in dates %}<option value="{{d}}">{{d}}</option>{% endfor %}</select>
+                <select id="f-region" style="flex:1; min-width:120px; padding:8px; border-radius:6px; border:1px solid #ddd;"><option value="all">所有地区</option><option value="海外">海外</option><option value="国内">国内</option></select>
+                <select id="f-co" style="flex:1; min-width:120px; padding:8px; border-radius:6px; border:1px solid #ddd;"><option value="all">所有公司</option>{% for c in company_list %}<option value="{{c}}">{{c}}</option>{% endfor %}</select>
+                <button onclick="doSearch()" style="background:var(--primary); color:white; border:none; padding:8px 25px; border-radius:6px; cursor:pointer; font-weight:bold;">搜索</button>
             </div>
             <div id="results"></div>
         </div>
@@ -174,7 +169,8 @@ def main():
 
         function changeDate(d) {
             document.querySelectorAll('.date-group').forEach(g => g.style.display = 'none');
-            document.getElementById('date-' + d).style.display = 'block';
+            const target = document.getElementById('date-' + d);
+            if(target) target.style.display = 'block';
         }
 
         function doSearch() {
@@ -189,7 +185,7 @@ def main():
             );
 
             const resDiv = document.getElementById('results');
-            resDiv.innerHTML = filtered.length ? '' : '<p style="text-align:center;color:#999;">无匹配结果</p>';
+            resDiv.innerHTML = filtered.length ? '' : '<p style="text-align:center;color:#999;margin-top:50px;">无匹配结果</p>';
             
             filtered.forEach(it => {
                 resDiv.innerHTML += `
@@ -198,7 +194,7 @@ def main():
                         <span class="tag tag-region">${it['海外/国内']}</span>
                         <span class="tag" style="background:#eee">${it['日期']}</span>
                         <span class="title">${it['标题']}</span>
-                        <p style="font-size:14px;color:#444;">${it['核心内容']}</p>
+                        <p style="font-size:15px;color:#444;">${it['核心内容']}</p>
                         <div class="footer"><span>公司: ${it['公司']} | 来源: ${it['来源']}</span><a href="${it['链接']}" target="_blank">原文 →</a></div>
                     </div>`;
             });
@@ -208,10 +204,11 @@ def main():
     </html>
     """
 
+    # 注意：这里的变量名必须与 HTML 模板中的 {% for %} 保持一致
     html = Template(template_str).render(
         dates=all_dates, 
-        news=news_data, 
-        headlines_data=headlines_data,
+        news_data=news_data_map, 
+        headlines_data=headlines_map,
         json_data=json_data, 
         company_list=COMPANY_ORDER
     )
