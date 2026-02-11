@@ -4,65 +4,62 @@ import json
 
 # 1. 基础配置
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1CgheqoqcKn-klAJCS8fWRdyP1ybBlG8ReqPLsqkFpl8/export?format=csv&gid=0"
-# 核心展示公司（综述页按此顺序展示）
+# 每日综述页核心展示公司
 CORE_COMPANIES = ['OpenAI', 'Anthropic', 'Google', 'Meta', '字节', '阿里', '腾讯']
 TOPIC_ORDER = ['技术迭代', '产品动态', '商业动态', '春节活动', '数据洞察']
 
 def main():
-    # 2. 读取并清洗数据
+    # 2. 读取数据
     try:
         df = pd.read_csv(SHEET_URL)
         df.columns = [c.strip() for c in df.columns]
+        # 处理头条标记
         if '是否头条' in df.columns:
             df['是否头条'] = pd.to_numeric(df['是否头条'], errors='coerce').fillna(0).astype(int)
         else:
             df['是否头条'] = 0
         df = df.fillna("")
     except Exception as e:
-        print(f"数据读取失败: {e}")
+        print(f"Error: {e}")
         return
 
-    # 获取全量公司列表（用于深度筛选下拉菜单）
+    # 获取全量公司列表（用于深度筛选）
     all_unique_companies = sorted(df['公司'].unique().tolist())
 
-    # 3. 综述页排序逻辑（仅限核心公司，其余归为其他）
-    def get_summary_sort_score(row):
+    # 3. 排序逻辑
+    def get_sort_score(row):
         c_val = row['公司']
-        if c_val in CORE_COMPANIES:
-            c_idx = CORE_COMPANIES.index(c_val)
-        else:
-            c_idx = len(CORE_COMPANIES) # 归类为“其他”，排在最后
-        
+        c_idx = CORE_COMPANIES.index(c_val) if c_val in CORE_COMPANIES else len(CORE_COMPANIES)
         t_val = row['话题']
         t_idx = TOPIC_ORDER.index(t_val) if t_val in TOPIC_ORDER else 99
         return (c_idx, t_idx)
 
-    df['summary_sort'] = df.apply(get_summary_sort_score, axis=1)
-    df_sorted = df.sort_values(by=['日期', 'summary_sort'], ascending=[False, True])
-    
+    df['sort_score'] = df.apply(get_sort_score, axis=1)
+    df_sorted = df.sort_values(by=['日期', 'sort_score'], ascending=[False, True])
     all_dates = df_sorted['日期'].unique().tolist()
 
-    # 4. 组织综述页展示数据 (Tab 1)
+    # 4. 组织数据
     news_data_map = {}
     headlines_map = {}
     
     for date in all_dates:
         day_df = df_sorted[df_sorted['日期'] == date]
+        # 提取头条
         headlines_map[date] = day_df[day_df['是否头条'] == 1].to_dict('records')
 
+        # 组织综述页分类数据
         news_data_map[date] = {}
-        # 依次处理核心公司
         for company in CORE_COMPANIES:
             comp_df = day_df[day_df['公司'] == company]
             if not comp_df.empty:
                 news_data_map[date][company] = comp_df.to_dict('records')
         
-        # 处理“其他”公司（即不在 CORE_COMPANIES 中的所有公司）
+        # 将非核心公司归入“其他”
         other_df = day_df[~day_df['公司'].isin(CORE_COMPANIES)]
         if not other_df.empty:
             news_data_map[date]['其他'] = other_df.to_dict('records')
 
-    # 5. 全量 JSON 数据（用于 Tab 2 筛选，包含百度等所有公司）
+    # 5. 全量 JSON 数据
     json_data = json.dumps(df.to_dict('records'), ensure_ascii=False)
 
     template_str = """
@@ -73,25 +70,46 @@ def main():
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>AI News速览</title>
         <style>
-            :root { --primary: #1a73e8; --bg: #f8f9fa; --text: #202124; --accent: #f4b400; }
+            :root { --primary: #1a73e8; --bg: #f8f9fa; --text: #202124; }
             body { font-family: -apple-system, system-ui, sans-serif; background: var(--bg); color: var(--text); margin: 0; }
             .container { max-width: 900px; margin: auto; padding: 20px; }
-            .tabs-nav { display: flex; border-bottom: 2px solid #ddd; margin-bottom: 20px; background: #fff; border-radius: 8px 8px 0 0; }
+            
+            /* Tabs */
+            .tabs-nav { display: flex; border-bottom: 2px solid #ddd; margin-bottom: 20px; background: #fff; }
             .tab-btn { padding: 15px 25px; cursor: pointer; border: none; background: none; font-size: 16px; font-weight: bold; color: #5f6368; flex: 1; transition: 0.3s; }
             .tab-btn.active { color: var(--primary); border-bottom: 3px solid var(--primary); background: #f1f3f4; }
             .tab-pane { display: none; padding: 10px; }
             .tab-pane.active { display: block; }
 
-            .headline-section { background: #fff; padding: 25px; border-radius: 12px; margin-bottom: 35px; border: 2px solid var(--primary); position: relative; box-shadow: 0 4px 15px rgba(26, 115, 232, 0.1); }
-            .headline-label { background: var(--primary); color: #fff; padding: 4px 12px; font-size: 12px; font-weight: bold; border-radius: 0 0 8px 0; position: absolute; top: 0; left: 0; }
+            /* 今日头条 - 强制白色背景 */
+            .headline-section { 
+                background: #ffffff !important; 
+                padding: 25px; 
+                border-radius: 12px; 
+                margin-bottom: 35px; 
+                border: 2px solid var(--primary); 
+                box-shadow: 0 4px 15px rgba(26, 115, 232, 0.1);
+                position: relative;
+            }
+            .headline-label { 
+                background: var(--primary); 
+                color: #fff; 
+                padding: 4px 12px; 
+                font-size: 12px; 
+                font-weight: bold; 
+                border-radius: 0 0 8px 0; 
+                position: absolute; 
+                top: 0; 
+                left: 0; 
+            }
             .hl-item { border-bottom: 1px solid #f0f0f0; padding: 15px 0; }
             .hl-item:last-child { border-bottom: none; }
             .hl-title { font-size: 21px; font-weight: 800; color: #111; text-decoration: none; display: block; margin: 10px 0 8px 0; }
             .hl-content { color: #444; font-size: 15px; margin-bottom: 12px; line-height: 1.7; }
 
-            .company-section { margin-top: 35px; }
-            .co-title { color: var(--primary); border-left: 5px solid var(--primary); padding-left: 12px; margin-bottom: 18px; font-size: 22px; font-weight: 700; }
-            .card { background: #fff; border: 1px solid #eee; padding: 20px; margin-bottom: 15px; border-radius: 10px; transition: 0.2s; }
+            /* 普通卡片 */
+            .co-title { color: var(--primary); border-left: 5px solid var(--primary); padding-left: 12px; margin: 35px 0 15px; font-size: 22px; font-weight: 700; }
+            .card { background: #fff; border: 1px solid #eee; padding: 20px; margin-bottom: 15px; border-radius: 10px; }
             .tag { font-size: 11px; padding: 2px 8px; border-radius: 4px; font-weight: bold; margin-right: 6px; }
             .tag-topic { background: #e8f0fe; color: var(--primary); }
             .tag-region { background: #fff7e0; color: #f29900; border: 1px solid #ffeeba; }
@@ -103,6 +121,7 @@ def main():
     <body>
     <div class="container">
         <header style="text-align:center; margin-bottom:25px;"><h1>AI News速览</h1></header>
+        
         <div class="tabs-nav">
             <div class="tab-btn active" onclick="openTab(event, 'daily-view')">每日综述</div>
             <div class="tab-btn" onclick="openTab(event, 'filter-view')">深度筛选</div>
@@ -114,6 +133,7 @@ def main():
                     {% for d in dates %}<option value="{{d}}">{{d}}</option>{% endfor %}
                 </select>
             </div>
+            
             {% for d in dates %}
             <div id="date-{{d}}" class="date-group" style="display: {{ 'block' if loop.first else 'none' }}">
                 {% if headlines_data[d] %}
@@ -123,7 +143,7 @@ def main():
                     <div class="hl-item">
                         <a href="{{hl['链接']}}" target="_blank" class="hl-title">{{hl['标题']}}</a>
                         <p class="hl-content">{{hl['核心内容']}}</p>
-                        <div style="font-size:12px;color:#888">主体: {{hl['公司']}} | 来源: {{hl['来源']}}</div>
+                        <div style="font-size:12px; color:#888;">主体: {{hl['公司']}} | 来源: {{hl['来源']}}</div>
                     </div>
                     {% endfor %}
                 </div>
@@ -179,7 +199,7 @@ def main():
             const c = document.getElementById('f-co').value;
             const filtered = rawData.filter(it => (d === 'all' || it['日期'] == d) && (r === 'all' || it['海外/国内'] == r) && (c === 'all' || it['公司'] == c));
             const resDiv = document.getElementById('results');
-            resDiv.innerHTML = filtered.length ? '' : '<p style="text-align:center;color:#999;margin-top:50px;">未发现匹配新闻</p>';
+            resDiv.innerHTML = filtered.length ? '' : '<p style="text-align:center;color:#999;margin-top:50px;">无匹配结果</p>';
             filtered.forEach(it => {
                 resDiv.innerHTML += `<div class="card"><span class="tag tag-topic">${it['话题']}</span><span class="tag tag-region">${it['海外/国内']}</span><span class="tag" style="background:#eee">${it['日期']}</span><span class="title">${it['标题']}</span><p style="font-size:15px;color:#444;">${it['核心内容']}</p><div class="footer"><span>公司: ${it['公司']} | 来源: ${it['来源']}</span><a href="${it['链接']}" target="_blank" style="font-weight:bold;">原文 →</a></div></div>`;
             });
@@ -189,6 +209,7 @@ def main():
     </html>
     """
 
+    # 变量渲染
     html = Template(template_str).render(
         dates=all_dates, 
         news_data=news_data_map, 
