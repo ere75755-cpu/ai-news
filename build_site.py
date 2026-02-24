@@ -147,7 +147,7 @@ def main():
                 
                 {% if headlines_data[d] %}
                 <div class="headline-section">
-                    <span class="headline-label">战略核心提要</span>
+                    <span class="headline-label">今日头条</span>
                     {% for hl in headlines_data[d] %}
                     <div class="hl-item">
                         <div class="tag-group">
@@ -158,7 +158,7 @@ def main():
                         <p style="font-size:15px; color:#444; line-height: 1.7; margin-bottom: 10px;">{{hl['核心内容']}}</p>
                         <div class="footer" style="border:none; padding:0;">
                             <span>来源: {{hl['来源']}}</span>
-                            <a href="{{hl['链接']}}" class="link-btn" target="_blank">阅读全文调查 →</a>
+                            <a href="{{hl['链接']}}" class="link-btn" target="_blank">阅读原文 →</a>
                         </div>
                     </div>
                     {% endfor %}
@@ -172,14 +172,14 @@ def main():
                     <div class="card" onclick="this.classList.toggle('open')">
                         <div class="tag-group">
                             <span class="tag tag-important">{{it['话题']}}</span>
-                            {% if co == '其他' %}<span class="tag">涉及：{{it['公司']}}</span>{% endif %}
+                            {% if co == '其他' %}<span class="tag">公司/模型：{{it['公司']}}</span>{% endif %}
                         </div>
                         <span class="title-row">{{it['标题']}}</span>
                         <div class="content-box">
                             {{it['核心内容']}}
                             <div class="footer">
                                 <span>来源: {{it['来源']}}</span>
-                                <a href="{{it['链接']}}" class="link-btn" target="_blank" onclick="event.stopPropagation();">阅读原文调查 →</a>
+                                <a href="{{it['链接']}}" class="link-btn" target="_blank" onclick="event.stopPropagation();">阅读原文 →</a>
                             </div>
                         </div>
                     </div>
@@ -193,7 +193,7 @@ def main():
         <div id="filter" class="tab-pane">
             <div style="background:#fff; padding:25px; border:1px solid #ddd; display:flex; gap:15px; margin-bottom:25px; position: sticky; top: 0; z-index: 101;">
                 <select id="f-date" style="flex:1; padding:10px;"><option value="all">全时间段</option>{% for d in dates %}<option value="{{d}}">{{d}}</option>{% endfor %}</select>
-                <select id="f-co" style="flex:1; padding:10px;"><option value="all">全公司主体</option>{% for c in all_companies %}<option value="{{c}}">{{c}}</option>{% endfor %}</select>
+                <select id="f-co" style="flex:1; padding:10px;"><option value="all">所有公司</option>{% for c in all_companies %}<option value="{{c}}">{{c}}</option>{% endfor %}</select>
                 <button onclick="doSearch()" style="background:#333; color:white; border:none; padding:10px 30px; cursor:pointer; font-weight:bold;">开始检索</button>
             </div>
             <div id="results"></div>
@@ -219,7 +219,7 @@ def main():
             prev.setDate(current.getDate() - 1);
             const label = `${prev.getFullYear()}/${prev.getMonth()+1}/${prev.getDate()} 17:00 至 ${current.getFullYear()}/${current.getMonth()+1}/${current.getDate()} 17:00`;
             const labelEl = document.querySelector('#date-' + d.replace(/\//g, '\\\\/') + ' .time-label');
-            if(labelEl) labelEl.innerText = "本期监测数据周期：" + label;
+            if(labelEl) labelEl.innerText = "本期监测周期：" + label;
         }
         window.onload = () => { 
             const select = document.getElementById('dateSelect');
@@ -248,7 +248,7 @@ def main():
                         ${it['核心内容']}
                         <div class="footer">
                             <span>来源: ${it['来源']}</span>
-                            <a href="${it['链接']}" class="link-btn" target="_blank" onclick="event.stopPropagation();">阅读原文调查 →</a>
+                            <a href="${it['链接']}" class="link-btn" target="_blank" onclick="event.stopPropagation();">阅读原文 →</a>
                         </div>
                     </div>`;
                 resDiv.appendChild(card);
