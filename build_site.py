@@ -74,7 +74,7 @@ def main():
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>全球 AI 产业核心动态内参</title>
+        <title>全球 AI 核心动态内参</title>
         <style>
             :root { --primary: #1a73e8; --bg: #f8f9fa; --text: #202124; --border: #e0e0e0; }
             body { font-family: "PingFang SC", "Microsoft YaHei", sans-serif; background: var(--bg); color: var(--text); margin: 0; line-height: 1.6; }
@@ -156,14 +156,14 @@ def main():
                     <div class="card" onclick="this.classList.toggle('open')">
                         <div class="tag-group">
                             <span class="tag tag-important">{{it['话题']}}</span>
-                            {% if co == '其他' %}<span class="tag">来源：{{it['公司']}}</span>{% endif %}
+                            {% if co == '其他' %}<span class="tag">公司：{{it['公司']}}</span>{% endif %}
                         </div>
                         <span class="title-row">{{it['标题']}}</span>
                         <div class="content-box">
                             {{it['核心内容']}}
                             <div class="footer">
                                 <span>发布来源: {{it['来源']}}</span>
-                                <a href="{{it['链接']}}" class="link-btn" target="_blank" onclick="event.stopPropagation();">阅读原文调查 →</a>
+                                <a href="{{it['链接']}}" class="link-btn" target="_blank" onclick="event.stopPropagation();">阅读原文 →</a>
                             </div>
                         </div>
                     </div>
@@ -177,7 +177,7 @@ def main():
         <div id="filter" class="tab-pane">
             <div style="background:#fff; padding:25px; border:1px solid #ddd; display:flex; gap:15px; margin-bottom:25px;">
                 <select id="f-date" style="flex:1; padding:10px;"><option value="all">全时间段</option>{% for d in dates %}<option value="{{d}}">{{d}}</option>{% endfor %}</select>
-                <select id="f-co" style="flex:1; padding:10px;"><option value="all">全公司主体</option>{% for c in all_companies %}<option value="{{c}}">{{c}}</option>{% endfor %}</select>
+                <select id="f-co" style="flex:1; padding:10px;"><option value="all">全公司</option>{% for c in all_companies %}<option value="{{c}}">{{c}}</option>{% endfor %}</select>
                 <button onclick="doSearch()" style="background:#333; color:white; border:none; padding:10px 30px; cursor:pointer; font-weight:bold;">开始检索</button>
             </div>
             <div id="results"></div>
