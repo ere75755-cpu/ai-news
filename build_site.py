@@ -173,7 +173,7 @@ def main():
                     <div class="card" onclick="this.classList.toggle('open')">
                         <div class="tag-group">
                             <span class="tag tag-important">{{it['话题']}}</span>
-                            {% if co == '其他' %}<span class="tag">涉及：{{it['公司']}}</span>{% endif %}
+                            {% if co == '其他' %}<span class="tag">公司/模型：{{it['公司']}}</span>{% endif %}
                         </div>
                         <span class="title-row">{{it['标题']}}</span>
                         <div class="content-box">
@@ -241,7 +241,7 @@ def main():
                     <div class="tag-group">
                         <span class="tag tag-important">${it['话题']}</span>
                         <span class="tag">日期：${it['日期']}</span>
-                        <span class="tag">公司：${it['公司']}</span>
+                        <span class="tag">公司/模型：${it['公司']}</span>
                     </div>
                     <span class="title-row">${it['标题']}</span>
                     <div class="content-box">
