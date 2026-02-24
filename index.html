@@ -738,7 +738,7 @@
             prev.setDate(current.getDate() - 1);
             const label = `${prev.getFullYear()}/${prev.getMonth()+1}/${prev.getDate()} 17:00 至 ${current.getFullYear()}/${current.getMonth()+1}/${current.getDate()} 17:00`;
             const labelEl = document.querySelector('#date-' + d.replace(/\//g, '\\/') + ' .time-label');
-            if(labelEl) labelEl.innerText = "本期监测数据周期：" + label;
+            if(labelEl) labelEl.innerText = "本期监测周期：" + label;
         }
         window.onload = () => { if(document.getElementById('dateSelect')) updateTimeLabel(document.getElementById('dateSelect').value); };
         function doSearch() {
