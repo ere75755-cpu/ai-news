@@ -4,15 +4,20 @@ import json
 
 # 1. 基础配置
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1CgheqoqcKn-klAJCS8fWRdyP1ybBlG8ReqPLsqkFpl8/export?format=csv&gid=0"
+# 核心展示公司
 CORE_COMPANIES = ['OpenAI', 'Anthropic', 'Google', 'Meta', '字节跳动', '阿里巴巴', '腾讯', '百度']
+# 国产模组合并项
 DOMESTIC_MODELS = ['Kimi', 'MiniMax', '智谱']
 TOPIC_ORDER = ['技术迭代', '产品动态', '商业动态', '春节活动', '数据洞察']
 MY_DOMAIN = "www.aipulse.run"
 
 def main():
+    # 2. 读取数据
     try:
         df = pd.read_csv(SHEET_URL)
         df.columns = [c.strip() for c in df.columns]
+        
+        # 兼容性清洗
         name_map = {'字节': '字节跳动', '阿里': '阿里巴巴', 'Baidu': '百度', 'minimax': 'MiniMax', '智谱AI': '智谱'}
         df['公司'] = df['公司'].replace(name_map)
         
@@ -22,35 +27,46 @@ def main():
             df['是否头条'] = 0
         df = df.fillna("")
     except Exception as e:
-        print(f"数据读取失败: {e}"); return
+        print(f"数据读取失败: {e}")
+        return
 
+    # 获取全量公司列表（用于历史检索）
     all_unique_companies = sorted(df['公司'].unique().tolist())
 
-    # 排序权重逻辑
+    # 3. 排序权重逻辑
     def get_sort_score(row):
         c_val = row['公司']
-        if c_val in CORE_COMPANIES: c_idx = CORE_COMPANIES.index(c_val)
-        elif c_val in DOMESTIC_MODELS: c_idx = len(CORE_COMPANIES)
-        else: c_idx = len(CORE_COMPANIES) + 1
-        t_idx = TOPIC_ORDER.index(row['话题']) if row['话题'] in TOPIC_ORDER else 99
+        if c_val in CORE_COMPANIES:
+            c_idx = CORE_COMPANIES.index(c_val)
+        elif c_val in DOMESTIC_MODELS:
+            c_idx = len(CORE_COMPANIES)
+        else:
+            c_idx = len(CORE_COMPANIES) + 1
+        
+        t_val = row['话题']
+        t_idx = TOPIC_ORDER.index(t_val) if t_val in TOPIC_ORDER else 99
         return (c_idx, t_idx)
 
     df['sort_score'] = df.apply(get_sort_score, axis=1)
     df_sorted = df.sort_values(by=['日期', 'sort_score'], ascending=[False, True])
     all_dates = df_sorted['日期'].unique().tolist()
 
+    # 4. 组织数据
     news_data_map = {}
     headlines_map = {}
     
     for date in all_dates:
         day_df = df_sorted[df_sorted['日期'] == date]
         headlines_map[date] = day_df[day_df['是否头条'] == 1].to_dict('records')
+
         news_data_map[date] = {}
-        
+        # A. 核心公司
         for company in CORE_COMPANIES:
             comp_df = day_df[day_df['公司'] == company]
-            if not comp_df.empty: news_data_map[date][company] = comp_df.to_dict('records')
+            if not comp_df.empty:
+                news_data_map[date][company] = comp_df.to_dict('records')
         
+        # B. 国产大模组合并
         domestic_df = day_df[day_df['公司'].isin(DOMESTIC_MODELS)].copy()
         if not domestic_df.empty:
             domestic_df['d_rank'] = domestic_df['公司'].apply(lambda x: DOMESTIC_MODELS.index(x))
@@ -58,21 +74,25 @@ def main():
             domestic_df = domestic_df.sort_values(by=['d_rank', 't_rank'])
             news_data_map[date]['Kimi / MiniMax / 智谱'] = domestic_df.to_dict('records')
         
+        # C. 行业内其他新闻动态 (更名处)
         other_df = day_df[~day_df['公司'].isin(CORE_COMPANIES + DOMESTIC_MODELS)]
-        if not other_df.empty: news_data_map[date]['其他'] = other_df.to_dict('records')
+        if not other_df.empty:
+            news_data_map[date]['行业内其他新闻动态'] = other_df.to_dict('records')
 
+    # 定义 json 数据用于 JavaScript
     final_json = json.dumps(df.to_dict('records'), ensure_ascii=False)
 
+    # 5. HTML 模板 (线性列表风格)
     template_str = """
     <!DOCTYPE html>
     <html lang="zh-CN">
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>全球 AI 核心动态内参</title>
+        <title>全球 AI 产业核心动态内参</title>
         <style>
             :root { --primary: #1a73e8; --bg: #ffffff; --text: #202124; --border: #eeeeee; }
-            body { font-family: -apple-system, "PingFang SC", sans-serif; background: var(--bg); color: var(--text); margin: 0; line-height: 1.4; }
+            body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; background: var(--bg); color: var(--text); margin: 0; line-height: 1.4; }
             .container { max-width: 780px; margin: auto; padding: 10px; }
             
             header h1 { text-align: center; font-size: 22px; margin: 15px 0 5px; font-weight: 800; border-bottom: 3px solid var(--primary); padding-bottom: 5px; }
@@ -84,30 +104,22 @@ def main():
             .tab-pane { display: none; }
             .tab-pane.active { display: block; }
 
-            /* 头条部分 */
             .headline-section { background: #fff; padding: 12px; border: 1px solid var(--primary); margin-bottom: 20px; position: relative; }
             .headline-label { background: #d93025; color: #fff; padding: 2px 6px; font-size: 10px; font-weight: bold; position: absolute; top: -9px; left: 12px; }
             .hl-item { border-bottom: 1px dashed #eee; padding: 6px 0; }
             .hl-item:last-child { border-bottom: none; }
             .hl-title { font-size: 15px; font-weight: bold; color: var(--primary); text-decoration: none; display: block; }
 
-            /* 公司标题吸顶 */
             .company-section { margin-top: 20px; }
             .co-title { 
-                position: sticky; top: 0; z-index: 100; 
+                position: -webkit-sticky; position: sticky; top: 0; z-index: 100; 
                 background: rgba(255, 255, 255, 0.98); backdrop-filter: blur(4px);
                 padding: 6px 0 6px 10px; margin: 0;
                 color: var(--primary); border-left: 4px solid var(--primary); font-size: 16px; font-weight: 800; 
                 border-bottom: 1px solid #f0f0f0;
             }
             
-            /* 新闻列表 - 无边框样式 */
-            .news-item { 
-                padding: 10px 5px; 
-                border-bottom: 1px solid var(--border); 
-                cursor: pointer; 
-                transition: background 0.2s;
-            }
+            .news-item { padding: 10px 5px; border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.2s; }
             .news-item:hover { background: #fafafa; }
             .news-item:last-child { border-bottom: none; }
             
@@ -151,11 +163,11 @@ def main():
             
             {% for d in dates %}
             <div id="date-{{d}}" class="date-group" style="display: {{ 'block' if loop.first else 'none' }}">
-                <div class="time-label">数据周期加载中...</div>
+                <div class="time-label">数据监测周期加载中...</div>
                 
                 {% if headlines_data[d] %}
                 <div class="headline-section">
-                    <span class="headline-label">今日头条</span>
+                    <span class="headline-label">战略核心提要</span>
                     {% for hl in headlines_data[d] %}
                     <div class="hl-item">
                         <div class="tag-group">
@@ -176,7 +188,7 @@ def main():
                     <div class="news-item" onclick="this.classList.toggle('open')">
                         <div class="tag-group">
                             <span class="tag tag-important">{{it['话题']}}</span>
-                            {% if co == 'Kimi / MiniMax / 智谱' or co == '其他' %}
+                            {% if co == 'Kimi / MiniMax / 智谱' or co == '行业内其他新闻动态' %}
                             <span class="tag tag-domestic">{{it['公司']}}</span>
                             {% endif %}
                         </div>
@@ -197,7 +209,7 @@ def main():
         </div>
 
         <div id="filter" class="tab-pane">
-            <div style="background:#fff; padding:10px; border:1px solid #ddd; display:flex; gap:8px; margin-bottom:15px; position: sticky; top: 0; z-index: 101;">
+            <div style="background:#fff; padding:10px; border:1px solid #ddd; display:flex; gap:8px; margin-bottom:15px; position: -webkit-sticky; position: sticky; top: 0; z-index: 101;">
                 <select id="f-date" style="flex:1; font-size:11px;"><option value="all">全时间段</option>{% for d in dates %}<option value="{{d}}">{{d}}</option>{% endfor %}</select>
                 <select id="f-co" style="flex:1; font-size:11px;"><option value="all">所有公司</option>{% for c in all_companies %}<option value="{{c}}">{{c}}</option>{% endfor %}</select>
                 <button onclick="doSearch()" style="background:var(--primary); color:white; border:none; padding:4px 12px; font-weight:bold; font-size:11px; border-radius:2px;">搜索</button>
@@ -244,7 +256,7 @@ def main():
                 resDiv.appendChild(item);
             });
         }
-        function fadeIn(el) { el.style.opacity = 0; (function fade() { var val = parseFloat(el.style.opacity); if (!((val += .1) > 1)) { el.style.opacity = val; requestAnimationFrame(fade); } })(); }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
     </script>
     </body>
     </html>
