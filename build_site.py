@@ -4,7 +4,7 @@ import json
 
 # 1. 基础配置
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1CgheqoqcKn-klAJCS8fWRdyP1ybBlG8ReqPLsqkFpl8/export?format=csv&gid=0"
-# 核心展示公司：增加百度，并确保字节跳动、阿里巴巴的命名对齐
+# 核心展示公司
 CORE_COMPANIES = ['OpenAI', 'Anthropic', 'Google', 'Meta', '字节跳动', '阿里巴巴', '腾讯', '百度']
 TOPIC_ORDER = ['技术迭代', '产品动态', '商业动态', '春节活动', '数据洞察']
 MY_DOMAIN = "www.aipulse.run"
@@ -15,7 +15,7 @@ def main():
         df = pd.read_csv(SHEET_URL)
         df.columns = [c.strip() for c in df.columns]
         
-        # 兼容性清洗：将表格里的简称统一
+        # 兼容性清洗
         name_map = {'字节': '字节跳动', '阿里': '阿里巴巴', 'Baidu': '百度'}
         df['公司'] = df['公司'].replace(name_map)
         
@@ -28,7 +28,7 @@ def main():
         print(f"数据读取失败: {e}")
         return
 
-    # 获取全量公司列表（用于深度筛选）
+    # 获取全量公司列表
     all_unique_companies = sorted(df['公司'].unique().tolist())
 
     # 3. 排序逻辑
@@ -36,14 +36,14 @@ def main():
         c_val = row['公司']
         c_idx = CORE_COMPANIES.index(c_val) if c_val in CORE_COMPANIES else len(CORE_COMPANIES)
         t_val = row['话题']
-        t_idx = TOPIC_ORDER.index(t_val) if t_val in TOPIC_ORDER else 99
+        t_idx = TOPIC_ORDER.index(row['话题']) if row['话题'] in TOPIC_ORDER else 99
         return (c_idx, t_idx)
 
     df['sort_score'] = df.apply(get_sort_score, axis=1)
     df_sorted = df.sort_values(by=['日期', 'sort_score'], ascending=[False, True])
     all_dates = df_sorted['日期'].unique().tolist()
 
-    # 4. 组织数据结构 (修正变量名定义的 Bug)
+    # 4. 组织数据
     news_data_map = {}
     headlines_map = {}
     
@@ -53,18 +53,16 @@ def main():
         headlines_map[date] = day_df[day_df['是否头条'] == 1].to_dict('records')
 
         news_data_map[date] = {}
-        # 核心公司
         for company in CORE_COMPANIES:
             comp_df = day_df[day_df['公司'] == company]
             if not comp_df.empty:
                 news_data_map[date][company] = comp_df.to_dict('records')
         
-        # 其他公司
         other_df = day_df[~day_df['公司'].isin(CORE_COMPANIES)]
         if not other_df.empty:
             news_data_map[date]['其他'] = other_df.to_dict('records')
 
-    # 定义 json_data 变量，修复渲染报错
+    # 定义数据用于 JS 搜索
     final_json = json.dumps(df.to_dict('records'), ensure_ascii=False)
 
     # 5. HTML 模板
@@ -89,19 +87,29 @@ def main():
             .tab-pane { display: none; }
             .tab-pane.active { display: block; }
 
-            /* 头条样式 */
+            /* 头条部分样式增强 */
             .headline-section { background: #fff; padding: 25px; border: 1px solid #111; margin-bottom: 40px; position: relative; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
             .headline-label { background: #d93025; color: #fff; padding: 4px 12px; font-size: 12px; font-weight: bold; position: absolute; top: -12px; left: 20px; }
-            .hl-title { font-size: 22px; font-weight: bold; color: #111; text-decoration: none; display: block; margin: 15px 0 10px; }
+            .hl-item { border-bottom: 1px dashed #eee; padding: 15px 0; }
+            .hl-item:last-child { border-bottom: none; }
+            .hl-title { font-size: 22px; font-weight: bold; color: #111; text-decoration: none; display: block; margin-bottom: 8px; }
+            .hl-title:hover { color: var(--primary); }
 
-            /* 公司标题强化 */
-            .co-title { color: #111; border-left: 8px solid #333; padding-left: 15px; margin: 50px 0 20px; font-size: 28px; font-weight: 900; }
+            /* 公司标题吸顶 */
+            .company-section { margin-top: 50px; }
+            .co-title { 
+                position: sticky; top: 0; z-index: 100; 
+                background: rgba(248, 249, 250, 0.95); backdrop-filter: blur(5px);
+                padding: 15px 0 15px 15px; margin: 0 0 20px 0;
+                color: #111; border-left: 8px solid #333; font-size: 28px; font-weight: 900; 
+                box-shadow: 0 2px 5px rgba(0,0,0,0.02);
+            }
             
-            /* 手风琴卡片 */
+            /* 卡片样式 */
             .card { background: #fff; border: 1px solid var(--border); padding: 20px; margin-bottom: 15px; cursor: pointer; border-radius: 2px; transition: 0.2s; }
             .card:hover { border-color: #333; }
-            .tag-group { margin-bottom: 10px; }
-            .tag { font-size: 11px; padding: 2px 8px; font-weight: bold; margin-right: 6px; background: #f1f3f4; color: #5f6368; border: 1px solid #ddd; }
+            .tag-group { margin-bottom: 10px; display: flex; gap: 6px; flex-wrap: wrap; }
+            .tag { font-size: 11px; padding: 2px 8px; font-weight: bold; background: #f1f3f4; color: #5f6368; border: 1px solid #ddd; border-radius: 4px; }
             .tag-important { background: #e8f0fe; color: var(--primary); border-color: #c2d7fa; }
             
             .title-row { font-size: 18px; font-weight: 700; color: #222; display: flex; justify-content: space-between; align-items: center; }
@@ -112,7 +120,7 @@ def main():
             .card.open .content-box { display: block; }
             
             @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-            .footer { font-size: 13px; color: #888; display: flex; justify-content: space-between; margin-top: 20px; }
+            .footer { font-size: 13px; color: #888; display: flex; justify-content: space-between; align-items: center; margin-top: 20px; border-top: 1px solid #f9f9f9; padding-top: 10px; }
             .link-btn { color: var(--primary); text-decoration: none; font-weight: bold; }
         </style>
     </head>
@@ -128,7 +136,7 @@ def main():
         <div id="daily" class="tab-pane active">
             <div style="text-align: right; margin-bottom:20px;">
                 <label style="font-weight:bold;">报告日期：</label>
-                <select id="dateSelect" onchange="changeDate(this.value)" style="padding:5px; border:1px solid #333;">
+                <select id="dateSelect" onchange="changeDate(this.value)" style="padding:5px; border:1px solid #333; font-weight: bold;">
                     {% for d in dates %}<option value="{{d}}">{{d}}</option>{% endfor %}
                 </select>
             </div>
@@ -139,11 +147,19 @@ def main():
                 
                 {% if headlines_data[d] %}
                 <div class="headline-section">
-                    <span class="headline-label">今日头条</span>
+                    <span class="headline-label">战略核心提要</span>
                     {% for hl in headlines_data[d] %}
-                    <div style="margin-bottom:20px;">
+                    <div class="hl-item">
+                        <div class="tag-group">
+                            <span class="tag tag-important">{{hl['话题']}}</span>
+                            <span class="tag">发布：{{hl['公司']}}</span>
+                        </div>
                         <a href="{{hl['链接']}}" target="_blank" class="hl-title">{{hl['标题']}}</a>
-                        <p style="font-size:15px; color:#444;">{{hl['核心内容']}}</p>
+                        <p style="font-size:15px; color:#444; line-height: 1.7; margin-bottom: 10px;">{{hl['核心内容']}}</p>
+                        <div class="footer" style="border:none; padding:0;">
+                            <span>来源: {{hl['来源']}}</span>
+                            <a href="{{hl['链接']}}" class="link-btn" target="_blank">阅读全文调查 →</a>
+                        </div>
                     </div>
                     {% endfor %}
                 </div>
@@ -156,14 +172,14 @@ def main():
                     <div class="card" onclick="this.classList.toggle('open')">
                         <div class="tag-group">
                             <span class="tag tag-important">{{it['话题']}}</span>
-                            {% if co == '其他' %}<span class="tag">公司：{{it['公司']}}</span>{% endif %}
+                            {% if co == '其他' %}<span class="tag">涉及：{{it['公司']}}</span>{% endif %}
                         </div>
                         <span class="title-row">{{it['标题']}}</span>
                         <div class="content-box">
                             {{it['核心内容']}}
                             <div class="footer">
-                                <span>发布来源: {{it['来源']}}</span>
-                                <a href="{{it['链接']}}" class="link-btn" target="_blank" onclick="event.stopPropagation();">阅读原文 →</a>
+                                <span>来源: {{it['来源']}}</span>
+                                <a href="{{it['链接']}}" class="link-btn" target="_blank" onclick="event.stopPropagation();">阅读原文调查 →</a>
                             </div>
                         </div>
                     </div>
@@ -175,9 +191,9 @@ def main():
         </div>
 
         <div id="filter" class="tab-pane">
-            <div style="background:#fff; padding:25px; border:1px solid #ddd; display:flex; gap:15px; margin-bottom:25px;">
+            <div style="background:#fff; padding:25px; border:1px solid #ddd; display:flex; gap:15px; margin-bottom:25px; position: sticky; top: 0; z-index: 101;">
                 <select id="f-date" style="flex:1; padding:10px;"><option value="all">全时间段</option>{% for d in dates %}<option value="{{d}}">{{d}}</option>{% endfor %}</select>
-                <select id="f-co" style="flex:1; padding:10px;"><option value="all">所有公司</option>{% for c in all_companies %}<option value="{{c}}">{{c}}</option>{% endfor %}</select>
+                <select id="f-co" style="flex:1; padding:10px;"><option value="all">全公司主体</option>{% for c in all_companies %}<option value="{{c}}">{{c}}</option>{% endfor %}</select>
                 <button onclick="doSearch()" style="background:#333; color:white; border:none; padding:10px 30px; cursor:pointer; font-weight:bold;">开始检索</button>
             </div>
             <div id="results"></div>
@@ -203,16 +219,39 @@ def main():
             prev.setDate(current.getDate() - 1);
             const label = `${prev.getFullYear()}/${prev.getMonth()+1}/${prev.getDate()} 17:00 至 ${current.getFullYear()}/${current.getMonth()+1}/${current.getDate()} 17:00`;
             const labelEl = document.querySelector('#date-' + d.replace(/\//g, '\\\\/') + ' .time-label');
-            if(labelEl) labelEl.innerText = "本期监测周期：" + label;
+            if(labelEl) labelEl.innerText = "本期监测数据周期：" + label;
         }
-        window.onload = () => { if(document.getElementById('dateSelect')) updateTimeLabel(document.getElementById('dateSelect').value); };
+        window.onload = () => { 
+            const select = document.getElementById('dateSelect');
+            if(select) changeDate(select.value);
+        };
+        
+        // 历史检索逻辑升级：支持手风琴展开
         function doSearch() {
             const d = document.getElementById('f-date').value, c = document.getElementById('f-co').value;
             const filtered = rawData.filter(it => (d === 'all' || it['日期'] == d) && (c === 'all' || it['公司'] == c));
             const resDiv = document.getElementById('results');
-            resDiv.innerHTML = filtered.length ? '' : '<p>未检索到相关情报</p>';
+            resDiv.innerHTML = filtered.length ? '' : '<p style="text-align:center; padding:50px; color:#999;">未检索到相关情报</p>';
+            
             filtered.forEach(it => {
-                resDiv.innerHTML += `<div class="card open" style="cursor:default; border-left:4px solid #333;"><span class="title-row">${it['标题']}</span><div class="content-box" style="display:block">${it['核心内容']}</div></div>`;
+                const card = document.createElement('div');
+                card.className = 'card';
+                card.onclick = () => card.classList.toggle('open');
+                card.innerHTML = `
+                    <div class="tag-group">
+                        <span class="tag tag-important">${it['话题']}</span>
+                        <span class="tag">日期：${it['日期']}</span>
+                        <span class="tag">公司：${it['公司']}</span>
+                    </div>
+                    <span class="title-row">${it['标题']}</span>
+                    <div class="content-box">
+                        ${it['核心内容']}
+                        <div class="footer">
+                            <span>来源: ${it['来源']}</span>
+                            <a href="${it['链接']}" class="link-btn" target="_blank" onclick="event.stopPropagation();">阅读原文调查 →</a>
+                        </div>
+                    </div>`;
+                resDiv.appendChild(card);
             });
         }
     </script>
@@ -220,7 +259,7 @@ def main():
     </html>
     """
 
-    # 渲染并写入文件
+    # 渲染
     html = Template(template_str).render(
         dates=all_dates, 
         news_data=news_data_map, 
@@ -231,7 +270,6 @@ def main():
     
     with open("index.html", "w", encoding="utf-8") as f:
         f.write(html)
-    
     with open("CNAME", "w") as f:
         f.write(MY_DOMAIN)
 
