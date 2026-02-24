@@ -177,7 +177,7 @@ def main():
         <div id="filter" class="tab-pane">
             <div style="background:#fff; padding:25px; border:1px solid #ddd; display:flex; gap:15px; margin-bottom:25px;">
                 <select id="f-date" style="flex:1; padding:10px;"><option value="all">全时间段</option>{% for d in dates %}<option value="{{d}}">{{d}}</option>{% endfor %}</select>
-                <select id="f-co" style="flex:1; padding:10px;"><option value="all">全公司</option>{% for c in all_companies %}<option value="{{c}}">{{c}}</option>{% endfor %}</select>
+                <select id="f-co" style="flex:1; padding:10px;"><option value="all">所有公司</option>{% for c in all_companies %}<option value="{{c}}">{{c}}</option>{% endfor %}</select>
                 <button onclick="doSearch()" style="background:#333; color:white; border:none; padding:10px 30px; cursor:pointer; font-weight:bold;">开始检索</button>
             </div>
             <div id="results"></div>
