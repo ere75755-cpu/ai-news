@@ -118,7 +118,7 @@ def main():
     </head>
     <body>
     <div class="container">
-        <header><h1>全球 AI 产业核心动态内参</h1></header>
+        <header><h1>全球 AI 核心动态内参</h1></header>
         
         <div class="tabs-nav">
             <div class="tab-btn active" onclick="openTab(event, 'daily')">每日综述</div>
