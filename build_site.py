@@ -4,7 +4,7 @@ import json
 
 # 1. 基础配置
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1CgheqoqcKn-klAJCS8fWRdyP1ybBlG8ReqPLsqkFpl8/export?format=csv&gid=0"
-# 核心展示公司
+# 核心展示公司：增加百度，并确保字节跳动、阿里巴巴的命名对齐
 CORE_COMPANIES = ['OpenAI', 'Anthropic', 'Google', 'Meta', '字节跳动', '阿里巴巴', '腾讯', '百度']
 TOPIC_ORDER = ['技术迭代', '产品动态', '商业动态', '春节活动', '数据洞察']
 MY_DOMAIN = "www.aipulse.run"
@@ -15,7 +15,7 @@ def main():
         df = pd.read_csv(SHEET_URL)
         df.columns = [c.strip() for c in df.columns]
         
-        # 兼容性清洗
+        # 兼容性清洗：将表格里的简称统一
         name_map = {'字节': '字节跳动', '阿里': '阿里巴巴', 'Baidu': '百度'}
         df['公司'] = df['公司'].replace(name_map)
         
@@ -28,7 +28,7 @@ def main():
         print(f"数据读取失败: {e}")
         return
 
-    # 获取全量公司列表
+    # 获取全量公司列表（用于深度筛选）
     all_unique_companies = sorted(df['公司'].unique().tolist())
 
     # 3. 排序逻辑
@@ -78,22 +78,22 @@ def main():
             body { font-family: "PingFang SC", "Microsoft YaHei", sans-serif; background: var(--bg); color: var(--text); margin: 0; line-height: 1.6; }
             .container { max-width: 900px; margin: auto; padding: 20px; }
             
-            header h1 { text-align: center; font-size: 34px; margin: 30px 0 10px; font-weight: 800; border-bottom: 4px solid #111; padding-bottom: 10px; }
+            header h1 { text-align: center; font-size: 34px; margin: 30px 0 10px; font-weight: 800; border-bottom: 4px solid var(--primary); padding-bottom: 10px; color: var(--text); }
             .time-label { text-align: center; font-size: 14px; color: #666; margin-bottom: 30px; background: #eee; padding: 6px; border-radius: 4px; }
 
             .tabs-nav { display: flex; border: 1px solid var(--border); margin-bottom: 25px; background: #fff; border-radius: 4px; overflow: hidden; }
             .tab-btn { padding: 15px; cursor: pointer; border: none; background: none; font-size: 16px; font-weight: bold; color: #5f6368; flex: 1; transition: 0.2s; }
-            .tab-btn.active { color: #fff; background: #333; }
+            .tab-btn.active { color: #fff; background: var(--primary); }
             .tab-pane { display: none; }
             .tab-pane.active { display: block; }
 
-            /* 头条部分样式增强 */
-            .headline-section { background: #fff; padding: 25px; border: 1px solid #111; margin-bottom: 40px; position: relative; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+            /* 头条部分样式 */
+            .headline-section { background: #fff; padding: 25px; border: 1px solid var(--primary); margin-bottom: 40px; position: relative; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
             .headline-label { background: #d93025; color: #fff; padding: 4px 12px; font-size: 12px; font-weight: bold; position: absolute; top: -12px; left: 20px; }
             .hl-item { border-bottom: 1px dashed #eee; padding: 15px 0; }
             .hl-item:last-child { border-bottom: none; }
-            .hl-title { font-size: 22px; font-weight: bold; color: #111; text-decoration: none; display: block; margin-bottom: 8px; }
-            .hl-title:hover { color: var(--primary); }
+            .hl-title { font-size: 22px; font-weight: bold; color: var(--primary); text-decoration: none; display: block; margin-bottom: 8px; }
+            .hl-title:hover { opacity: 0.8; }
 
             /* 公司标题吸顶 */
             .company-section { margin-top: 50px; }
@@ -101,20 +101,20 @@ def main():
                 position: sticky; top: 0; z-index: 100; 
                 background: rgba(248, 249, 250, 0.95); backdrop-filter: blur(5px);
                 padding: 15px 0 15px 15px; margin: 0 0 20px 0;
-                color: #111; border-left: 8px solid #333; font-size: 28px; font-weight: 900; 
+                color: var(--primary); border-left: 8px solid var(--primary); font-size: 28px; font-weight: 900; 
                 box-shadow: 0 2px 5px rgba(0,0,0,0.02);
             }
             
             /* 卡片样式 */
             .card { background: #fff; border: 1px solid var(--border); padding: 20px; margin-bottom: 15px; cursor: pointer; border-radius: 2px; transition: 0.2s; }
-            .card:hover { border-color: #333; }
+            .card:hover { border-color: var(--primary); }
             .tag-group { margin-bottom: 10px; display: flex; gap: 6px; flex-wrap: wrap; }
             .tag { font-size: 11px; padding: 2px 8px; font-weight: bold; background: #f1f3f4; color: #5f6368; border: 1px solid #ddd; border-radius: 4px; }
             .tag-important { background: #e8f0fe; color: var(--primary); border-color: #c2d7fa; }
             
             .title-row { font-size: 18px; font-weight: 700; color: #222; display: flex; justify-content: space-between; align-items: center; }
             .title-row::after { content: '+'; font-size: 20px; color: #999; transition: 0.3s; }
-            .card.open .title-row::after { content: '-'; transform: rotate(180deg); color: #333; }
+            .card.open .title-row::after { content: '-'; transform: rotate(180deg); color: var(--primary); }
             
             .content-box { display: none; padding-top: 20px; margin-top: 15px; border-top: 1px dashed #eee; font-size: 15px; color: #444; animation: fadeIn 0.3s; }
             .card.open .content-box { display: block; }
@@ -122,6 +122,7 @@ def main():
             @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
             .footer { font-size: 13px; color: #888; display: flex; justify-content: space-between; align-items: center; margin-top: 20px; border-top: 1px solid #f9f9f9; padding-top: 10px; }
             .link-btn { color: var(--primary); text-decoration: none; font-weight: bold; }
+            .link-btn:hover { text-decoration: underline; }
         </style>
     </head>
     <body>
@@ -135,8 +136,8 @@ def main():
 
         <div id="daily" class="tab-pane active">
             <div style="text-align: right; margin-bottom:20px;">
-                <label style="font-weight:bold;">报告日期：</label>
-                <select id="dateSelect" onchange="changeDate(this.value)" style="padding:5px; border:1px solid #333; font-weight: bold;">
+                <label style="font-weight:bold;">发布日期：</label>
+                <select id="dateSelect" onchange="changeDate(this.value)" style="padding:5px; border:1px solid var(--primary); border-radius:4px; font-weight: bold;">
                     {% for d in dates %}<option value="{{d}}">{{d}}</option>{% endfor %}
                 </select>
             </div>
@@ -152,7 +153,7 @@ def main():
                     <div class="hl-item">
                         <div class="tag-group">
                             <span class="tag tag-important">{{hl['话题']}}</span>
-                            <span class="tag">发布：{{hl['公司']}}</span>
+                            <span class="tag">公司：{{hl['公司']}}</span>
                         </div>
                         <a href="{{hl['链接']}}" target="_blank" class="hl-title">{{hl['标题']}}</a>
                         <p style="font-size:15px; color:#444; line-height: 1.7; margin-bottom: 10px;">{{hl['核心内容']}}</p>
@@ -172,7 +173,7 @@ def main():
                     <div class="card" onclick="this.classList.toggle('open')">
                         <div class="tag-group">
                             <span class="tag tag-important">{{it['话题']}}</span>
-                            {% if co == '其他' %}<span class="tag">公司/模型：{{it['公司']}}</span>{% endif %}
+                            {% if co == '其他' %}<span class="tag">涉及：{{it['公司']}}</span>{% endif %}
                         </div>
                         <span class="title-row">{{it['标题']}}</span>
                         <div class="content-box">
@@ -192,9 +193,9 @@ def main():
 
         <div id="filter" class="tab-pane">
             <div style="background:#fff; padding:25px; border:1px solid #ddd; display:flex; gap:15px; margin-bottom:25px; position: sticky; top: 0; z-index: 101;">
-                <select id="f-date" style="flex:1; padding:10px;"><option value="all">全时间段</option>{% for d in dates %}<option value="{{d}}">{{d}}</option>{% endfor %}</select>
-                <select id="f-co" style="flex:1; padding:10px;"><option value="all">所有公司</option>{% for c in all_companies %}<option value="{{c}}">{{c}}</option>{% endfor %}</select>
-                <button onclick="doSearch()" style="background:#333; color:white; border:none; padding:10px 30px; cursor:pointer; font-weight:bold;">开始检索</button>
+                <select id="f-date" style="flex:1; padding:10px; border-radius:4px;"><option value="all">全时间段</option>{% for d in dates %}<option value="{{d}}">{{d}}</option>{% endfor %}</select>
+                <select id="f-co" style="flex:1; padding:10px; border-radius:4px;"><option value="all">所有公司</option>{% for c in all_companies %}<option value="{{c}}">{{c}}</option>{% endfor %}</select>
+                <button onclick="doSearch()" style="background:var(--primary); color:white; border:none; padding:10px 30px; cursor:pointer; font-weight:bold; border-radius:4px;">开始检索</button>
             </div>
             <div id="results"></div>
         </div>
@@ -226,7 +227,6 @@ def main():
             if(select) changeDate(select.value);
         };
         
-        // 历史检索逻辑升级：支持手风琴展开
         function doSearch() {
             const d = document.getElementById('f-date').value, c = document.getElementById('f-co').value;
             const filtered = rawData.filter(it => (d === 'all' || it['日期'] == d) && (c === 'all' || it['公司'] == c));
