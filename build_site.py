@@ -139,7 +139,7 @@ def main():
                 
                 {% if headlines_data[d] %}
                 <div class="headline-section">
-                    <span class="headline-label">战略核心提要</span>
+                    <span class="headline-label">今日头条</span>
                     {% for hl in headlines_data[d] %}
                     <div style="margin-bottom:20px;">
                         <a href="{{hl['链接']}}" target="_blank" class="hl-title">{{hl['标题']}}</a>
