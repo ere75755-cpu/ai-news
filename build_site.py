@@ -18,7 +18,7 @@ def main():
         df.columns = [c.strip() for c in df.columns]
         
         # 兼容性清洗
-        name_map = {'字节': '字节跳动', '阿里': '阿里巴巴', 'Baidu': '百度', 'minimax': 'MiniMax', '智谱AI': '智谱'}
+        name_map = {'字节': '字节跳动', '阿里': '阿里巴巴', 'Baidu': '百度', 'Minimax': 'MiniMax', '智谱AI': '智谱'}
         df['公司'] = df['公司'].replace(name_map)
         
         if '是否头条' in df.columns:
