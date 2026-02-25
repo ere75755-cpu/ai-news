@@ -7,14 +7,30 @@ from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime, timedelta, timezone
 
 # --- 配置区 ---
-# 1. 目标 Excel 的 ID
 SHEET_ID = "1CgheqoqcKn-klAJCS8fWRdyP1ybBlG8ReqPLsqkFpl8"
-
-# 2. 设置时区 (北京时间 GMT+8)
+TAB_NAME = "Long List"  # 指定写入这个 Tab
 BEIJING = timezone(timedelta(hours=8))
 
-# 3. 数据源清单 (微信公众号建议使用 RSSHub 转换)
-# 格式为 "显示名称": "RSS地址"
+ENTITY_KEYWORDS = {
+    "OpenAI": ["OpenAI", "GPT-4", "GPT-5", "Sora", "o1", "SearchGPT"],
+    "Anthropic": ["Anthropic", "Claude"],
+    "Google": ["Google", "Gemini", "DeepMind"],
+    "Meta": ["Meta", "Llama"],
+    "Microsoft": ["Microsoft", "微软", "Copilot"],
+    "阿里巴巴": ["阿里巴巴", "阿里", "通义", "Qwen", "千问", "蚂蚁集团", "蚂蚁阿福", "支付宝"],
+    "字节跳动": ["字节跳动", "豆包", "Doubao"],
+    "百度": ["百度", "文心", "Ernie"],
+    "腾讯": ["腾讯", "混元", "Hunyuan"],
+    "Kimi": ["Kimi", "月之暗面", "Moonshot"],
+    "智谱AI": ["智谱", "ChatGLM", "GLM-4"],
+    "DeepSeek": ["DeepSeek"],
+    "科大讯飞": ["科大讯飞", "讯飞", "星火"],
+    "商汤": ["商汤", "SenseTime", "日日新"],
+    "可灵": ["可灵", "Kling", "快手AI"],
+    "OpenClaw": ["OpenClaw"],
+    "Minimax": ["Minimax", "海螺AI"]
+}
+
 SOURCES = {
     "量子位": "https://rsshub.app/wechat/mp/msig/QbitAI",
     "DeepSeek": "https://rsshub.app/wechat/mp/msig/deepseek_ai",
@@ -23,93 +39,85 @@ SOURCES = {
     "机器之心": "https://rsshub.app/wechat/mp/msig/almosthuman2014",
     "新智元": "https://rsshub.app/wechat/mp/msig/AI_era",
     "通义大模型": "https://rsshub.app/wechat/mp/msig/Qwen-AI",
+    "晚点LatePost": "https://rsshub.app/wechat/mp/msig/postlate",
+    "虎嗅": "https://rsshub.app/wechat/mp/msig/huxiu_com",
+    "36氪": "https://rsshub.app/wechat/mp/msig/wow36kr",
     "OpenAI News": "https://rsshub.app/openai/news",
-    "Anthropic": "https://rsshub.app/anthropic/news",
-    "Google AI Blog": "https://rsshub.app/google/blog/ai",
-    # 您可以在此继续添加其他公众号或官网链接...
+    "Anthropic News": "https://rsshub.app/anthropic/news",
+    "Google AI Blog": "https://rsshub.app/google/blog/ai"
 }
 
+def extract_entity(title):
+    for entity, keywords in ENTITY_KEYWORDS.items():
+        for kw in keywords:
+            if kw.lower() in title.lower():
+                return entity
+    return "通用/其他"
+
 def get_time_window():
-    """动态获取 24 小时时间窗口：最近的一个 17:00 周期"""
     now = datetime.now(BEIJING)
     today_17pm = now.replace(hour=17, minute=0, second=0, microsecond=0)
-
     if now >= today_17pm:
-        # 正常执行情况：当前过了17点，取 [昨天17点, 今天17点]
         end_time = today_17pm
         start_time = end_time - timedelta(days=1)
     else:
-        # 手动提前运行情况：当前未到17点，取 [前天17点, 昨天17点]
         end_time = today_17pm - timedelta(days=1)
         start_time = end_time - timedelta(days=1)
-
-    print(f"--- 运行报告 ---")
-    print(f"当前时间: {now.strftime('%Y-%m-%d %H:%M')}")
-    print(f"抓取窗口: {start_time.strftime('%Y-%m-%d %H:%M')} -> {end_time.strftime('%Y-%m-%d %H:%M')}")
-    return start_time, end_time
+    return start_time, end_time, now
 
 def fetch_data(start_t, end_t):
-    """从所有源抓取符合时间窗口的数据"""
     news_list = []
     for name, url in SOURCES.items():
         try:
             feed = feedparser.parse(url)
-            count = 0
             for entry in feed.entries:
-                # 解析发布时间 (RSS标准通常为UTC)
                 if not hasattr(entry, 'published_parsed'): continue
-                
                 pub_time = datetime.fromtimestamp(time.mktime(entry.published_parsed), tz=timezone.utc).astimezone(BEIJING)
-                
-                # 核心过滤逻辑：只取窗口期内的数据
                 if start_t <= pub_time < end_t:
+                    entity = extract_entity(entry.title)
                     news_list.append({
-                        "date": pub_time.strftime("%Y-%m-%d %H:%M"),
-                        "source": name,
                         "title": entry.title,
-                        "link": entry.link
+                        "entity": entity,
+                        "link": entry.link,
+                        "raw_time": pub_time
                     })
-                    count += 1
-            print(f"✅ {name}: 发现 {count} 篇新动态")
-        except Exception as e:
-            print(f"❌ {name} 抓取失败: {e}")
+        except Exception:
+            print(f"❌ {name} 访问异常")
     return news_list
 
-def write_to_sheets(news_data):
-    """将数据写入 Google Sheets"""
+def write_to_sheets(news_data, run_date):
     if not news_data:
-        print("📭 窗口期内无新数据，停止写入。")
+        print("📭 无新数据。")
         return
-
-    # 从 GitHub Secrets 获取凭据
     creds_dict = json.loads(os.environ['GCP_SA_JSON'])
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
     client = gspread.authorize(creds)
-
     try:
-        sheet = client.open_by_key(SHEET_ID).sheet1
+        # 核心改动：通过名字打开特定的 Tab
+        sheet = client.open_by_key(SHEET_ID).worksheet(TAB_NAME)
         
-        # 查重逻辑：读取现有第4列（链接列）
-        existing_links = sheet.col_values(4)
+        # C列查重 (链接列)
+        existing_links = sheet.col_values(3)
         
         rows_to_add = []
+        news_data.sort(key=lambda x: x["raw_time"])
+        date_str = run_date.strftime("%Y-%m-%d") 
+        
         for item in news_data:
             if item["link"] not in existing_links:
-                rows_to_add.append([item["date"], item["source"], item["title"], item["link"]])
+                # 写入顺序：标题 | 实体 | 链接 | 日期
+                rows_to_add.append([item["title"], item["entity"], item["link"], date_str])
         
         if rows_to_add:
-            # 排序：按发布时间从旧到新，这样新文章在最下面
-            rows_to_add.sort(key=lambda x: x[0])
             sheet.append_rows(rows_to_add)
-            print(f"🚀 成功向 Excel 写入 {len(rows_to_add)} 条新记录！")
+            print(f"🚀 成功向 {TAB_NAME} 写入 {len(rows_to_add)} 条记录。")
         else:
-            print("查重完成：所有数据已存在，无需写入。")
-            
+            print("数据已存在。")
     except Exception as e:
-        print(f"🔴 写入 Excel 出错: {e}")
+        print(f"🔴 错误: {e}")
 
 if __name__ == "__main__":
-    start_time, end_time = get_time_window()
-    news_results = fetch_data(start_time, end_time)
-    write_to_sheets(news_results)
+    start_t, end_t, run_t = get_time_window()
+    data = fetch_data(start_t, end_t)
+    write_to_sheets(data, run_t)
