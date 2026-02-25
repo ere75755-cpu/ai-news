@@ -1,34 +1,72 @@
 import pandas as pd
 from jinja2 import Template
 import json
+import sys
 
-# 1. 基础配置
+# ==========================================
+# 1. 基础配置与排序权重定义
+# ==========================================
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1CgheqoqcKn-klAJCS8fWRdyP1ybBlG8ReqPLsqkFpl8/export?format=csv&gid=0"
-CORE_COMPANIES = ['OpenAI', 'Anthropic', 'Google', 'Meta', '字节跳动', '阿里巴巴', '腾讯', '百度']
-DOMESTIC_MODELS = ['Kimi', 'MiniMax', '智谱']
-TOPIC_ORDER = ['技术迭代', '产品动态', '商业动态', '春节活动', '数据洞察']
 MY_DOMAIN = "www.aipulse.run"
 
+# 核心大厂（一级板块）
+CORE_COMPANIES = ['OpenAI', 'Anthropic', 'Google', 'Meta', '字节跳动', '阿里巴巴', '腾讯', '百度']
+# 三大模型（二级板块）
+DOMESTIC_MODELS = ['Kimi', 'MiniMax', '智谱']
+# 话题标准排序
+TOPIC_ORDER = ['技术迭代', '产品动态', '商业动态', '春节活动', '数据洞察']
+
+# “行业内其余新闻”排序权重（越靠前权重越高）
+# 逻辑：知名C端AI > 顶级科技巨头 > 核心芯片/算力 > 知名硬件/机器人
+OTHER_PRIORITY = [
+    # --- 顶级C端产品/大模型初创 ---
+    'DeepSeek', 'Perplexity', 'Character.ai', 'Midjourney', 'Pika', 'Runway', 
+    'Suno', 'Luma', 'Grok', 'xAI', 'Mistral', 'Cohere', 'Hugging Face', 'OpenClaw',
+    
+    # --- 社交/搜索/生产力工具 ---
+    'Microsoft', 'Apple', 'NVIDIA', 'AMD', 'Intel', 'TSMC', 'Samsung', 'Amazon',
+    'Tesla', 'Notion', 'Canva', 'Adobe', 'GitHub', 'Arc', 'Cursor', 'Groq',
+    
+    # --- 硬件 AI / 机器人 (白名单及国际标杆) ---
+    '特斯拉', '波士顿动力', '宇树', '智元', '银河', '星海图', 'Fiture', 'Figure', 
+    'Sanctuary AI', '1X Technologies', 'Agility Robotics'
+]
+
 def main():
-    # 2. 读取并处理数据
+    # ==========================================
+    # 2. 数据读取与预处理
+    # ==========================================
     try:
         df = pd.read_csv(SHEET_URL)
         df.columns = [c.strip() for c in df.columns]
         
-        name_map = {'字节': '字节跳动', '阿里': '阿里巴巴', 'Baidu': '百度', 'minimax': 'MiniMax', '智谱AI': '智谱'}
+        # 统一命名规范（分析师专业性要求）
+        name_map = {
+            '字节': '字节跳动', '阿里': '阿里巴巴', 'Baidu': '百度', 
+            'minimax': 'MiniMax', '智谱AI': '智谱', 'OpenAI ': 'OpenAI'
+        }
         df['公司'] = df['公司'].replace(name_map)
         
+        # 处理数值列
         if '是否头条' in df.columns:
             df['是否头条'] = pd.to_numeric(df['是否头条'], errors='coerce').fillna(0).astype(int)
         else:
             df['是否头条'] = 0
+            
         df = df.fillna("")
     except Exception as e:
-        print(f"数据读取失败: {e}"); return
+        print(f"❌ 数据读取失败: {e}")
+        sys.exit(1)
 
+    # 提取所有不重复公司（供历史检索使用）
     all_unique_companies = sorted(df['公司'].unique().tolist(), 
                                   key=lambda x: x.encode('gbk') if isinstance(x, str) else x)
 
+    # ==========================================
+    # 3. 核心排序与分发逻辑
+    # ==========================================
+    
+    # 整体排序基础分值
     def get_sort_score(row):
         c_val = row['公司']
         if c_val in CORE_COMPANIES: c_idx = CORE_COMPANIES.index(c_val)
@@ -44,25 +82,53 @@ def main():
 
     news_data_map = {}
     headlines_map = {}
+
     for date in all_dates:
         day_df = df_sorted[df_sorted['日期'] == date]
+        
+        # A. 提取今日头条
         headlines_map[date] = day_df[day_df['是否头条'] == 1].to_dict('records')
+        
+        # B. 按照板块组织数据
         news_data_map[date] = {}
+        
+        # 1. 核心大厂板块
         for company in CORE_COMPANIES:
             comp_df = day_df[day_df['公司'] == company]
-            if not comp_df.empty: news_data_map[date][company] = comp_df.to_dict('records')
+            if not comp_df.empty:
+                news_data_map[date][company] = comp_df.to_dict('records')
+        
+        # 2. 国内三大模型板块
         domestic_df = day_df[day_df['公司'].isin(DOMESTIC_MODELS)].copy()
         if not domestic_df.empty:
             domestic_df['d_rank'] = domestic_df['公司'].apply(lambda x: DOMESTIC_MODELS.index(x))
             domestic_df['t_rank'] = domestic_df['话题'].apply(lambda x: TOPIC_ORDER.index(x) if x in TOPIC_ORDER else 99)
             domestic_df = domestic_df.sort_values(by=['d_rank', 't_rank'])
             news_data_map[date]['Kimi / MiniMax / 智谱'] = domestic_df.to_dict('records')
-        other_df = day_df[~day_df['公司'].isin(CORE_COMPANIES + DOMESTIC_MODELS)]
-        if not other_df.empty: news_data_map[date]['行业内其余新闻'] = other_df.to_dict('records')
+        
+        # 3. 行业内其余新闻（深度自定义排序逻辑）
+        other_df = day_df[~day_df['公司'].isin(CORE_COMPANIES + DOMESTIC_MODELS)].copy()
+        if not other_df.empty:
+            def get_other_rank(row):
+                # 第一级：话题是否为“数据洞察” (0为最前，1为普通)
+                topic_priority = 0 if row['话题'] == '数据洞察' else 1
+                # 第二级：公司知名度权重
+                co_val = row['公司']
+                co_weight = OTHER_PRIORITY.index(co_val) if co_val in OTHER_PRIORITY else 999
+                # 第三级：话题基础权重
+                t_idx = TOPIC_ORDER.index(row['话题']) if row['话题'] in TOPIC_ORDER else 99
+                return (topic_priority, co_weight, t_idx)
+            
+            other_df['other_rank_score'] = other_df.apply(get_other_rank, axis=1)
+            other_df = other_df.sort_values(by='other_rank_score')
+            news_data_map[date]['行业内其余新闻'] = other_df.to_dict('records')
 
+    # 用于前端检索的 JSON 字符串
     final_json_str = json.dumps(df.to_dict('records'), ensure_ascii=False)
 
-    # 4. HTML 模板 (浅蓝色调优化版)
+    # ==========================================
+    # 4. HTML 模板定义与渲染
+    # ==========================================
     template_str = """
     <!DOCTYPE html>
     <html lang="zh-CN">
@@ -74,7 +140,7 @@ def main():
         <style>
             :root { 
                 --primary: #1a73e8; 
-                --header-bg: #475569; /* 改用更清爽的深灰蓝 */
+                --header-bg: #475569; 
                 --bg: #ffffff; 
                 --text: #334155; 
                 --border: #f1f5f9; 
@@ -100,9 +166,9 @@ def main():
             .tab-content { display: none; overflow: visible; }
             .tab-content.active { display: block; }
 
-            /* 普通公司标题吸顶 */
+            /* 公司标题吸顶 */
             .sticky-title { 
-                position: sticky; top: 0; z-index: 1000; 
+                position: -webkit-sticky; position: sticky; top: 0; z-index: 1000; 
                 background: rgba(255, 255, 255, 0.98); backdrop-filter: blur(8px);
                 padding: 8px 0 8px 10px; margin: 0;
                 color: var(--primary); border-left: 4px solid var(--primary); 
@@ -110,9 +176,8 @@ def main():
                 font-family: 'Noto Serif SC', serif;
             }
 
-            /* 今日头条吸顶：颜色调浅，增加通透感 */
             .headline-title { 
-                position: sticky; top: 0; z-index: 1001; 
+                position: -webkit-sticky; position: sticky; top: 0; z-index: 1001; 
                 background: var(--header-bg); 
                 padding: 10px 0; margin: 0;
                 color: #ffffff; border-left: none; text-align: center;
@@ -125,13 +190,10 @@ def main():
             .hl-item { padding: 12px; border-bottom: 1px solid #edf2f7; }
             .hl-item:last-child { border-bottom: none; }
             .hl-title { font-size: 15px; font-weight: 700; color: #1e293b; text-decoration: none; display: block; margin-bottom: 4px; font-family: 'Noto Serif SC', serif; line-height: 1.4; }
-            .hl-title:hover { color: var(--primary); }
             .hl-content { font-size: 12px; color: #475569; line-height: 1.6; margin: 6px 0; text-align: justify; }
 
             .company-section { margin-top: 20px; }
             .news-item { padding: 10px 4px; border-bottom: 1px solid #f1f5f9; cursor: pointer; }
-            .news-item:last-child { border-bottom: none; }
-            
             .tag-group { margin-bottom: 4px; display: flex; gap: 6px; align-items: center; }
             .tag { font-size: 9px; padding: 1px 5px; font-weight: 600; background: #f1f5f9; color: #64748b; border-radius: 2px; }
             .tag-important { background: #e0f2fe; color: #0369a1; }
@@ -282,9 +344,20 @@ def main():
     </html>
     """
 
-    html = Template(template_str).render(dates=all_dates, news_data_map=news_data_map, headlines_map=headlines_map, final_json_str=final_json_str, all_companies=all_unique_companies)
-    with open("index.html", "w", encoding="utf-8") as f: f.write(html)
-    with open("CNAME", "w") as f: f.write(MY_DOMAIN)
+    # 渲染并输出
+    html = Template(template_str).render(
+        dates=all_dates, 
+        news_data_map=news_data_map, 
+        headlines_map=headlines_map, 
+        final_json_str=final_json_str, 
+        all_companies=all_unique_companies
+    )
+    
+    with open("index.html", "w", encoding="utf-8") as f:
+        f.write(html)
+        
+    with open("CNAME", "w") as f:
+        f.write(MY_DOMAIN)
 
 if __name__ == "__main__":
     main()
