@@ -87,63 +87,79 @@ def main():
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>全球 AI 核心动态内参</title>
+        <link rel="stylesheet" href="https://cdn.staticfile.org/lxgw-wenkai-screen-webfont/1.7.0/lxgwwenkaiscreen.css">
         <style>
-            :root { --primary: #1a73e8; --bg: #ffffff; --text: #202124; --border: #eeeeee; }
-            body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; background: var(--bg); color: var(--text); margin: 0; line-height: 1.4; }
+            :root { --primary: #1a73e8; --bg: #ffffff; --text: #2c3e50; --border: #eeeeee; }
+            
+            /* 字体优化：优先使用霞鹜文楷，其次苹方或微软雅黑 */
+            body { 
+                font-family: "LXGW WenKai Screen", "PingFang SC", "Hiragino Sans GB", "Microsoft Yahei", sans-serif; 
+                background: var(--bg); 
+                color: var(--text); 
+                margin: 0; 
+                line-height: 1.6; 
+                letter-spacing: 0.02em; /* 增加字间距，更透气 */
+            }
+            
             .container { max-width: 780px; margin: auto; padding: 10px; }
             
-            header h1 { text-align: center; font-size: 22px; margin: 15px 0 5px; font-weight: 800; border-bottom: 3px solid var(--primary); padding-bottom: 5px; }
-            .time-label { text-align: center; font-size: 11px; color: #777; margin-bottom: 15px; background: #f8f9fa; padding: 4px; border-radius: 2px; min-height: 16px; }
+            header h1 { 
+                text-align: center; 
+                font-size: 24px; 
+                margin: 20px 0 10px; 
+                font-weight: 700; 
+                border-bottom: 3px solid var(--primary); 
+                padding-bottom: 8px;
+                letter-spacing: 0.1em;
+            }
+            
+            .time-label { text-align: center; font-size: 11px; color: #7f8c8d; margin-bottom: 15px; background: #f8f9fa; padding: 4px; border-radius: 2px; min-height: 16px; }
 
             .tabs-nav { display: flex; border: 1px solid #ddd; margin-bottom: 15px; background: #fff; border-radius: 4px; overflow: hidden; }
-            .tab-btn { padding: 8px; cursor: pointer; border: none; background: none; font-size: 13px; font-weight: bold; color: #5f6368; flex: 1; }
+            .tab-btn { padding: 8px; cursor: pointer; border: none; background: none; font-size: 14px; font-weight: 600; color: #7f8c8d; flex: 1; transition: 0.3s; }
             .tab-btn.active { color: #fff; background: var(--primary); }
-            .tab-pane { display: none; }
-            .tab-pane.active { display: block; }
 
-            /* 今日头条 - 全量展示风格 */
-            .headline-section { background: #fff; padding: 12px; border: 1px solid var(--primary); margin-bottom: 20px; position: relative; }
-            .headline-label { background: #d93025; color: #fff; padding: 2px 6px; font-size: 10px; font-weight: bold; position: absolute; top: -9px; left: 12px; }
-            .hl-item { border-bottom: 1px dashed #eee; padding: 10px 0; }
+            /* 今日头条 */
+            .headline-section { background: #fff; padding: 14px; border: 1px solid var(--primary); margin-bottom: 20px; position: relative; border-radius: 4px; }
+            .headline-label { background: #d93025; color: #fff; padding: 2px 8px; font-size: 10px; font-weight: bold; position: absolute; top: -10px; left: 12px; border-radius: 2px; }
+            .hl-item { border-bottom: 1px dashed #eee; padding: 12px 0; }
             .hl-item:last-child { border-bottom: none; }
-            .hl-title { font-size: 16px; font-weight: bold; color: var(--primary); text-decoration: none; display: block; margin-bottom: 4px; }
-            .hl-content { font-size: 13px; color: #444; line-height: 1.5; margin: 6px 0; }
+            .hl-title { font-size: 17px; font-weight: 700; color: var(--primary); text-decoration: none; display: block; margin-bottom: 6px; }
+            .hl-content { font-size: 13.5px; color: #34495e; line-height: 1.7; margin: 8px 0; }
 
             /* 公司板块吸顶 */
-            .company-section { margin-top: 20px; }
+            .company-section { margin-top: 25px; }
             .co-title { 
                 position: -webkit-sticky; position: sticky; top: 0; z-index: 100; 
-                background: rgba(255, 255, 255, 0.98); backdrop-filter: blur(4px);
-                padding: 6px 0 6px 10px; margin: 0;
-                color: var(--primary); border-left: 4px solid var(--primary); font-size: 16px; font-weight: 800; 
+                background: rgba(255, 255, 255, 0.98); backdrop-filter: blur(6px);
+                padding: 8px 0 8px 12px; margin: 0;
+                color: var(--primary); border-left: 5px solid var(--primary); font-size: 18px; font-weight: 700; 
                 border-bottom: 1px solid #f0f0f0;
             }
             
-            /* 新闻列表 - 高密度排版 */
-            .news-item { padding: 10px 5px; border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.2s; }
+            /* 新闻列表 */
+            .news-item { padding: 12px 5px; border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.2s; }
             .news-item:hover { background: #fafafa; }
-            .news-item:last-child { border-bottom: none; }
             
-            .tag-group { margin-bottom: 4px; display: flex; gap: 4px; align-items: center; }
-            .tag { font-size: 9px; padding: 1px 5px; font-weight: bold; background: #f1f3f4; color: #5f6368; border-radius: 2px; }
+            .tag-group { margin-bottom: 6px; display: flex; gap: 8px; align-items: center; }
+            .tag { font-size: 10px; padding: 2px 6px; font-weight: 600; background: #f1f3f4; color: #7f8c8d; border-radius: 3px; }
             .tag-important { background: #e8f0fe; color: var(--primary); }
-            .tag-domestic { background: #fff7e0; color: #f29900; }
+            .tag-domestic { background: #fff7e0; color: #f39c12; }
             
-            .title-row { font-size: 14px; font-weight: 600; color: #222; display: flex; justify-content: space-between; align-items: center; }
-            .title-row::after { content: '+'; font-size: 14px; color: #ccc; font-weight: normal; }
+            .title-row { font-size: 15px; font-weight: 600; color: #2c3e50; display: flex; justify-content: space-between; align-items: center; }
+            .title-row::after { content: '+'; font-size: 16px; color: #bdc3c7; margin-left: 8px; }
             .news-item.open .title-row::after { content: '−'; color: var(--primary); }
             
-            .content-box { display: none; padding: 8px 0; font-size: 12.5px; color: #444; line-height: 1.6; }
+            .content-box { display: none; padding: 10px 0; font-size: 13px; color: #444; line-height: 1.8; text-align: justify; }
             .news-item.open .content-box { display: block; }
             
-            .footer { font-size: 11px; color: #999; display: flex; justify-content: space-between; margin-top: 8px; }
-            .link-btn { color: var(--primary); text-decoration: none; font-weight: bold; }
+            .footer { font-size: 11px; color: #95a5a6; display: flex; justify-content: space-between; margin-top: 10px; }
+            .link-btn { color: var(--primary); text-decoration: none; font-weight: 700; }
 
             @media (max-width: 600px) {
-                header h1 { font-size: 19px; }
-                .co-title { font-size: 15px; }
-                .title-row { font-size: 13.5px; }
-                .content-box { font-size: 12px; }
+                header h1 { font-size: 20px; }
+                .co-title { font-size: 16px; }
+                .hl-title { font-size: 16px; }
             }
         </style>
     </head>
@@ -157,7 +173,7 @@ def main():
 
         <div id="daily" class="tab-pane active">
             <div style="text-align: right; margin-bottom:10px;">
-                <select id="dateSelect" onchange="changeDate(this.value)" style="font-size:11px; border:1px solid #ddd; padding:2px;">
+                <select id="dateSelect" onchange="changeDate(this.value)" style="font-size:11px; border:1px solid #ddd; padding:2px; color: #666; border-radius: 3px;">
                     {% for d in dates %}<option value="{{d}}">{{d}}</option>{% endfor %}
                 </select>
             </div>
@@ -171,7 +187,10 @@ def main():
                     <span class="headline-label">今日头条</span>
                     {% for hl in headlines_map[d] %}
                     <div class="hl-item">
-                        <div class="tag-group"><span class="tag tag-important">{{hl['话题']}}</span><span class="tag">{{hl['公司']}}</span></div>
+                        <div class="tag-group">
+                            <span class="tag tag-important">{{hl['话题']}}</span>
+                            <span class="tag">发布：{{hl['公司']}}</span>
+                        </div>
                         <a href="{{hl['链接']}}" target="_blank" class="hl-title">{{hl['标题']}}</a>
                         <div class="hl-content">{{hl['核心内容']}}</div>
                         <div class="footer" style="margin-top:4px;"><span>来源: {{hl['来源']}}</span><a href="{{hl['链接']}}" class="link-btn" target="_blank">原文 →</a></div>
@@ -187,7 +206,9 @@ def main():
                     <div class="news-item" onclick="this.classList.toggle('open')">
                         <div class="tag-group">
                             <span class="tag tag-important">{{it['话题']}}</span>
-                            {% if co == 'Kimi / MiniMax / 智谱' or co == '行业内其他新闻动态' %}<span class="tag tag-domestic">{{it['公司']}}</span>{% endif %}
+                            {% if co == 'Kimi / MiniMax / 智谱' or co == '行业内其他新闻动态' %}
+                            <span class="tag tag-domestic">{{it['公司']}}</span>
+                            {% endif %}
                         </div>
                         <span class="title-row">{{it['标题']}}</span>
                         <div class="content-box">
@@ -208,7 +229,7 @@ def main():
         <div id="filter" class="tab-pane">
             <div style="background:#fff; padding:10px; border:1px solid #ddd; display:flex; gap:8px; margin-bottom:15px; position: sticky; top: 0; z-index: 101;">
                 <select id="f-date" style="flex:1; font-size:11px;"><option value="all">全时间段</option>{% for d in dates %}<option value="{{d}}">{{d}}</option>{% endfor %}</select>
-                <select id="f-co" style="flex:1; font-size:11px;"><option value="all">所有公司</option>{% for c in all_companies %}<option value="{{c}}">{{c}}</option>{% endfor %}</select>
+                <select id="f-co" style="flex:1; font-size:11px;"><option value="all">所有公司主体</option>{% for c in all_companies %}<option value="{{c}}">{{c}}</option>{% endfor %}</select>
                 <button onclick="doSearch()" style="background:var(--primary); color:white; border:none; padding:4px 12px; font-weight:bold; font-size:11px; border-radius:2px;">搜索</button>
             </div>
             <div id="results"></div>
@@ -216,7 +237,6 @@ def main():
     </div>
 
     <script>
-        // 数据注入
         const rawData = {{ final_json_str | safe }};
 
         function openTab(evt, id) {
@@ -242,7 +262,6 @@ def main():
                 prev.setDate(current.getDate() - 1);
                 const label = prev.getFullYear() + '/' + (prev.getMonth()+1) + '/' + prev.getDate() + ' 17:00 至 ' + current.getFullYear() + '/' + (current.getMonth()+1) + '/' + current.getDate() + ' 17:00';
                 
-                // 修复斜杠选择器问题
                 const targetDiv = document.getElementById('date-' + d);
                 if(targetDiv) {
                     const labelEl = targetDiv.querySelector('.time-label');
@@ -251,7 +270,6 @@ def main():
             } catch(e) { console.error("Time label update error:", e); }
         }
 
-        // 初始化挂载
         window.onload = () => { 
             const select = document.getElementById('dateSelect');
             if(select) changeDate(select.value);
