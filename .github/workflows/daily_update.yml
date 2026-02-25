@@ -1,37 +1,29 @@
-name: Auto Update AI Pulse
-
-# 触发条件
+name: Daily AI News Update
 on:
   schedule:
-    # 每天北京时间 17:05 运行 (UTC 09:05)
-    # 格式为：分 时 天 月 周
-    - cron: '5 9 * * *'
-  workflow_dispatch: # 允许在 Actions 页面手动点击按钮立即运行
+    # 这里的 cron 使用的是 UTC 时间
+    # 北京时间 (UTC+8) 19:00 = UTC 时间 11:00
+    - cron: '0 11 * * *' 
+  workflow_dispatch: # 允许你手动点击按钮立即更新
 
 jobs:
-  build_and_run:
+  build:
     runs-on: ubuntu-latest
-
     steps:
-      # 1. 检出仓库代码
       - name: Checkout code
-        uses: actions/checkout@v4
-
-      # 2. 安装 Python 环境
+        uses: actions/checkout@v2
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v2
         with:
           python-version: '3.9'
-
-      # 3. 安装必要的依赖库
       - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Build index.html
+        run: python build_site.py
+      - name: Commit and Push
         run: |
-          python -m pip install --upgrade pip
-          pip install gspread oauth2client feedparser requests
-
-      # 4. 执行更新脚本
-      - name: Run update script
-        env:
-          # 从 GitHub Secrets 读取你之前存入的 JSON 密钥
-          GCP_SA_JSON: ${{ secrets.GCP_SA_JSON }}
-        run: python update_pulse.py
+          git config --global user.name "AI Analyst"
+          git config --global user.email "analyst@ai.com"
+          git add index.html
+          git commit -m "Auto-update news at 19:00 CST" || exit 0
+          git push
