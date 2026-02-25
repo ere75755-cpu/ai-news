@@ -63,7 +63,7 @@ def main():
 
     final_json_str = json.dumps(df.to_dict('records'), ensure_ascii=False)
 
-    # 4. HTML 模板 (吸顶与去红优化版)
+    # 4. HTML 模板 (今日头条居中吸顶版)
     template_str = """
     <!DOCTYPE html>
     <html lang="zh-CN">
@@ -94,12 +94,22 @@ def main():
             .tab-content { display: none; overflow: visible; }
             .tab-content.active { display: block; }
 
-            /* 通用吸顶标题样式 (用于今日头条和公司名) */
+            /* 通用吸顶标题样式 */
             .sticky-title { 
-                position: sticky; top: 0; z-index: 1000; 
+                position: -webkit-sticky; position: sticky; top: 0; z-index: 1000; 
                 background: rgba(255, 255, 255, 0.98); backdrop-filter: blur(8px);
-                padding: 8px 0 8px 10px; margin: 0;
+                padding: 8px 10px; margin: 0;
                 color: var(--primary); border-left: 4px solid var(--primary); 
+                font-size: 15px; font-weight: 700; border-bottom: 1px solid #f0f0f0;
+                font-family: 'Noto Serif SC', serif;
+            }
+
+            /* 关键修改：今日头条专用吸顶样式，取消侧边线并居中 */
+            .headline-title { 
+                position: -webkit-sticky; position: sticky; top: 0; z-index: 1000; 
+                background: rgba(255, 255, 255, 0.98); backdrop-filter: blur(8px);
+                padding: 8px 0; margin: 0;
+                color: var(--primary); border-left: none; text-align: center;
                 font-size: 15px; font-weight: 700; border-bottom: 1px solid #f0f0f0;
                 font-family: 'Noto Serif SC', serif;
             }
@@ -131,7 +141,7 @@ def main():
 
             @media (max-width: 600px) {
                 header h1 { font-size: 18px; }
-                .hl-title, .sticky-title { font-size: 14.5px; }
+                .hl-title, .sticky-title, .headline-title { font-size: 14.5px; }
             }
         </style>
     </head>
@@ -159,7 +169,7 @@ def main():
             <div id="date-group-{{d}}" class="date-container" style="display: {{ 'block' if loop.first else 'none' }}">
                 {% if headlines_map[d] %}
                 <div class="headline-section">
-                    <h2 class="sticky-title">今日头条</h2>
+                    <h2 class="headline-title">今日头条</h2>
                     {% for hl in headlines_map[d] %}
                     <div class="hl-item">
                         <div class="tag-group">
