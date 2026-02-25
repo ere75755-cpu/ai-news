@@ -63,7 +63,7 @@ def main():
 
     final_json_str = json.dumps(df.to_dict('records'), ensure_ascii=False)
 
-    # 4. HTML 模板 (极致排版调优版)
+    # 4. HTML 模板 (吸顶与去红优化版)
     template_str = """
     <!DOCTYPE html>
     <html lang="zh-CN">
@@ -73,14 +73,14 @@ def main():
         <title>全球 AI 核心动态内参</title>
         <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@700&display=swap" rel="stylesheet">
         <style>
-            :root { --primary: #1a73e8; --bg: #ffffff; --text: #2c3e50; --border: #eeeeee; --red: #d93025; --sub-bg: #f9f9f9; }
+            :root { --primary: #1a73e8; --bg: #ffffff; --text: #2c3e50; --border: #eeeeee; --dark: #1a1a1a; }
             body { 
                 font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; 
                 background: var(--bg); color: var(--text); margin: 0; line-height: 1.5; 
                 -webkit-font-smoothing: antialiased;
             }
             .container { max-width: 780px; margin: auto; padding: 10px; overflow: visible; }
-            header h1 { font-family: 'Noto Serif SC', serif; text-align: center; font-size: 20px; margin: 15px 0 10px; color: #1a1a1a; }
+            header h1 { font-family: 'Noto Serif SC', serif; text-align: center; font-size: 20px; margin: 15px 0 10px; color: var(--dark); }
             
             .control-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding: 0 4px 6px 4px; border-bottom: 1px solid #f0f0f0; }
             .time-label { font-size: 10px; color: #999; white-space: nowrap; }
@@ -94,27 +94,8 @@ def main():
             .tab-content { display: none; overflow: visible; }
             .tab-content.active { display: block; }
 
-            /* 今日头条 - 优化：去框化，使用背景区分 */
-            .headline-section { margin-bottom: 30px; }
-            .headline-header { 
-                display: flex; align-items: center; 
-                color: var(--red); font-size: 13px; font-weight: 800; 
-                margin-bottom: 12px; padding-left: 0;
-            }
-            .headline-header::before { 
-                content: ''; display: inline-block; width: 3px; height: 13px; 
-                background: var(--red); margin-right: 6px; 
-            }
-            /* 头条单条新闻：无边框，改用极浅灰底 */
-            .hl-item { background: var(--sub-bg); padding: 12px; margin-bottom: 8px; border-radius: 2px; border: none; }
-            /* 头条标题字号与公司名对齐 */
-            .hl-title { font-size: 15px; font-weight: 700; color: var(--primary); text-decoration: none; display: block; margin-bottom: 4px; font-family: 'Noto Serif SC', serif; line-height: 1.4; }
-            /* 头条内容字体缩小 */
-            .hl-content { font-size: 12px; color: #444; line-height: 1.6; margin: 6px 0; text-align: justify; }
-
-            /* 公司标题吸顶 */
-            .company-section { margin-top: 20px; }
-            .co-title { 
+            /* 通用吸顶标题样式 (用于今日头条和公司名) */
+            .sticky-title { 
                 position: sticky; top: 0; z-index: 1000; 
                 background: rgba(255, 255, 255, 0.98); backdrop-filter: blur(8px);
                 padding: 8px 0 8px 10px; margin: 0;
@@ -122,8 +103,17 @@ def main():
                 font-size: 15px; font-weight: 700; border-bottom: 1px solid #f0f0f0;
                 font-family: 'Noto Serif SC', serif;
             }
-            
+
+            .headline-section { margin-bottom: 25px; }
+            .hl-item { padding: 12px 4px; border-bottom: 1px solid var(--border); }
+            .hl-item:last-child { border-bottom: none; }
+            .hl-title { font-size: 15px; font-weight: 700; color: var(--primary); text-decoration: none; display: block; margin-bottom: 4px; font-family: 'Noto Serif SC', serif; line-height: 1.4; }
+            .hl-content { font-size: 12px; color: #444; line-height: 1.6; margin: 6px 0; text-align: justify; }
+
+            .company-section { margin-top: 20px; }
             .news-item { padding: 10px 4px; border-bottom: 1px solid var(--border); cursor: pointer; }
+            .news-item:last-child { border-bottom: none; }
+            
             .tag-group { margin-bottom: 4px; display: flex; gap: 6px; align-items: center; }
             .tag { font-size: 9px; padding: 1px 5px; font-weight: 600; background: #f1f3f4; color: #888; border-radius: 2px; }
             .tag-important { background: #e8f0fe; color: var(--primary); }
@@ -133,7 +123,6 @@ def main():
             .title-row::after { content: '+'; font-size: 14px; color: #ccc; }
             .news-item.open .title-row::after { content: '−'; color: var(--primary); }
             
-            /* 正文核心内容缩小 */
             .content-box { display: none; padding: 8px 0; font-size: 12px; color: #444; line-height: 1.7; text-align: justify; }
             .news-item.open .content-box { display: block; }
             
@@ -142,7 +131,7 @@ def main():
 
             @media (max-width: 600px) {
                 header h1 { font-size: 18px; }
-                .hl-title, .co-title { font-size: 14.5px; } /* 移动端微调，保持统一 */
+                .hl-title, .sticky-title { font-size: 14.5px; }
             }
         </style>
     </head>
@@ -170,7 +159,7 @@ def main():
             <div id="date-group-{{d}}" class="date-container" style="display: {{ 'block' if loop.first else 'none' }}">
                 {% if headlines_map[d] %}
                 <div class="headline-section">
-                    <div class="headline-header">今日头条</div>
+                    <h2 class="sticky-title">今日头条</h2>
                     {% for hl in headlines_map[d] %}
                     <div class="hl-item">
                         <div class="tag-group">
@@ -179,9 +168,9 @@ def main():
                         </div>
                         <a href="{{hl['链接']}}" target="_blank" class="hl-title">{{hl['标题']}}</a>
                         <div class="hl-content">{{hl['核心内容']}}</div>
-                        <div class="footer" style="border:none; padding:0; margin-top:6px;">
+                        <div class="footer" style="margin-top:6px;">
                             <span>来源: {{hl['来源']}}</span>
-                            <a href="{{hl['链接']}}" class="link-btn" target="_blank">阅读原文 →</a>
+                            <a href="{{hl['链接']}}" class="link-btn" target="_blank">阅读原文</a>
                         </div>
                     </div>
                     {% endfor %}
@@ -190,7 +179,7 @@ def main():
 
                 {% for co, items in news_data_map[d].items() %}
                 <div class="company-section">
-                    <h2 class="co-title">{{co}}</h2>
+                    <h2 class="sticky-title">{{co}}</h2>
                     {% for it in items %}
                     <div class="news-item" onclick="this.classList.toggle('open')">
                         <div class="tag-group">
@@ -233,6 +222,7 @@ def main():
             document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
             document.getElementById('panel-' + id).classList.add('active');
             document.getElementById('btn-' + id).classList.add('active');
+            window.scrollTo(0,0);
             if(id === 'filter') doSearch();
         }
 
@@ -256,8 +246,7 @@ def main():
         };
 
         function doSearch() {
-            const d = document.getElementById('f-date').value;
-            const c = document.getElementById('f-co').value;
+            const d = document.getElementById('f-date').value, c = document.getElementById('f-co').value;
             const filtered = rawData.filter(it => (d === 'all' || it['日期'] == d) && (c === 'all' || it['公司'] == c));
             const resDiv = document.getElementById('results');
             resDiv.innerHTML = filtered.length ? '' : '<p style="text-align:center; padding:30px; font-size:11px; color:#999;">无匹配情报</p>';
