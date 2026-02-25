@@ -26,6 +26,7 @@ def main():
     except Exception as e:
         print(f"数据读取失败: {e}"); return
 
+    # 中英文混合排序
     all_unique_companies = sorted(df['公司'].unique().tolist(), 
                                   key=lambda x: x.encode('gbk') if isinstance(x, str) else x)
 
@@ -62,7 +63,7 @@ def main():
 
     final_json_str = json.dumps(df.to_dict('records'), ensure_ascii=False)
 
-    # 4. HTML 模板 (去掉今日头条的小框框)
+    # 4. HTML 模板 (极致排版调优版)
     template_str = """
     <!DOCTYPE html>
     <html lang="zh-CN">
@@ -72,10 +73,10 @@ def main():
         <title>全球 AI 核心动态内参</title>
         <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@700&display=swap" rel="stylesheet">
         <style>
-            :root { --primary: #1a73e8; --bg: #ffffff; --text: #2c3e50; --border: #eeeeee; --red: #d93025; }
+            :root { --primary: #1a73e8; --bg: #ffffff; --text: #2c3e50; --border: #eeeeee; --red: #d93025; --sub-bg: #f9f9f9; }
             body { 
                 font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; 
-                background: var(--bg); color: var(--text); margin: 0; line-height: 1.6; 
+                background: var(--bg); color: var(--text); margin: 0; line-height: 1.5; 
                 -webkit-font-smoothing: antialiased;
             }
             .container { max-width: 780px; margin: auto; padding: 10px; overflow: visible; }
@@ -93,21 +94,25 @@ def main():
             .tab-content { display: none; overflow: visible; }
             .tab-content.active { display: block; }
 
-            /* 今日头条 - 优化：去掉标题边框，改用文字样式 */
-            .headline-section { background: #fff; padding: 0 4px; margin-bottom: 30px; border-radius: 2px; }
+            /* 今日头条 - 优化：去框化，使用背景区分 */
+            .headline-section { margin-bottom: 30px; }
             .headline-header { 
                 display: flex; align-items: center; 
                 color: var(--red); font-size: 13px; font-weight: 800; 
-                margin-bottom: 10px; padding-left: 0;
+                margin-bottom: 12px; padding-left: 0;
             }
             .headline-header::before { 
                 content: ''; display: inline-block; width: 3px; height: 13px; 
                 background: var(--red); margin-right: 6px; 
             }
-            .hl-item { border: 1px solid var(--primary); padding: 12px; margin-bottom: 10px; border-radius: 2px; box-shadow: 0 2px 4px rgba(26,115,232,0.05); }
-            .hl-title { font-size: 16px; font-weight: 700; color: var(--primary); text-decoration: none; display: block; margin-bottom: 4px; font-family: 'Noto Serif SC', serif; line-height: 1.4; }
-            .hl-content { font-size: 13px; color: #444; line-height: 1.6; margin: 6px 0; text-align: justify; }
+            /* 头条单条新闻：无边框，改用极浅灰底 */
+            .hl-item { background: var(--sub-bg); padding: 12px; margin-bottom: 8px; border-radius: 2px; border: none; }
+            /* 头条标题字号与公司名对齐 */
+            .hl-title { font-size: 15px; font-weight: 700; color: var(--primary); text-decoration: none; display: block; margin-bottom: 4px; font-family: 'Noto Serif SC', serif; line-height: 1.4; }
+            /* 头条内容字体缩小 */
+            .hl-content { font-size: 12px; color: #444; line-height: 1.6; margin: 6px 0; text-align: justify; }
 
+            /* 公司标题吸顶 */
             .company-section { margin-top: 20px; }
             .co-title { 
                 position: sticky; top: 0; z-index: 1000; 
@@ -128,7 +133,8 @@ def main():
             .title-row::after { content: '+'; font-size: 14px; color: #ccc; }
             .news-item.open .title-row::after { content: '−'; color: var(--primary); }
             
-            .content-box { display: none; padding: 8px 0; font-size: 12.5px; color: #444; line-height: 1.7; text-align: justify; }
+            /* 正文核心内容缩小 */
+            .content-box { display: none; padding: 8px 0; font-size: 12px; color: #444; line-height: 1.7; text-align: justify; }
             .news-item.open .content-box { display: block; }
             
             .footer { font-size: 10px; color: #aaa; display: flex; justify-content: space-between; margin-top: 8px; }
@@ -136,7 +142,7 @@ def main():
 
             @media (max-width: 600px) {
                 header h1 { font-size: 18px; }
-                .hl-title { font-size: 15px; }
+                .hl-title, .co-title { font-size: 14.5px; } /* 移动端微调，保持统一 */
             }
         </style>
     </head>
@@ -152,7 +158,7 @@ def main():
         <div id="panel-daily" class="tab-content active">
             <div class="control-bar">
                 <div id="current-time-label" class="time-label">监测：加载中...</div>
-                <div class="date-picker-wrap">
+                <div style="display: flex; align-items: center;">
                     <span style="font-size:10px; color:#999;">日期：</span>
                     <select id="dateSelect" class="date-picker" onchange="changeDate(this.value)">
                         {% for d in dates %}<option value="{{d}}">{{d}}</option>{% endfor %}
@@ -173,7 +179,7 @@ def main():
                         </div>
                         <a href="{{hl['链接']}}" target="_blank" class="hl-title">{{hl['标题']}}</a>
                         <div class="hl-content">{{hl['核心内容']}}</div>
-                        <div class="footer" style="border:none; padding:0;">
+                        <div class="footer" style="border:none; padding:0; margin-top:6px;">
                             <span>来源: {{hl['来源']}}</span>
                             <a href="{{hl['链接']}}" class="link-btn" target="_blank">阅读原文 →</a>
                         </div>
