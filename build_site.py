@@ -26,7 +26,7 @@ def main():
     except Exception as e:
         print(f"数据读取失败: {e}"); return
 
-    # 中英文混合排序
+    # 中英文混合排序逻辑（GBK 编码技巧）
     all_unique_companies = sorted(df['公司'].unique().tolist(), 
                                   key=lambda x: x.encode('gbk') if isinstance(x, str) else x)
 
@@ -63,7 +63,7 @@ def main():
 
     final_json_str = json.dumps(df.to_dict('records'), ensure_ascii=False)
 
-    # 4. HTML 模板 (今日头条居中吸顶版)
+    # 4. HTML 模板
     template_str = """
     <!DOCTYPE html>
     <html lang="zh-CN">
@@ -73,14 +73,14 @@ def main():
         <title>全球 AI 核心动态内参</title>
         <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@700&display=swap" rel="stylesheet">
         <style>
-            :root { --primary: #1a73e8; --bg: #ffffff; --text: #2c3e50; --border: #eeeeee; --dark: #1a1a1a; }
+            :root { --primary: #1a73e8; --header-bg: #1a365d; --bg: #ffffff; --text: #2c3e50; --border: #eeeeee; --sub-bg: #f8fafc; }
             body { 
                 font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; 
                 background: var(--bg); color: var(--text); margin: 0; line-height: 1.5; 
                 -webkit-font-smoothing: antialiased;
             }
             .container { max-width: 780px; margin: auto; padding: 10px; overflow: visible; }
-            header h1 { font-family: 'Noto Serif SC', serif; text-align: center; font-size: 20px; margin: 15px 0 10px; color: var(--dark); }
+            header h1 { font-family: 'Noto Serif SC', serif; text-align: center; font-size: 20px; margin: 15px 0 10px; color: #1a1a1a; }
             
             .control-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding: 0 4px 6px 4px; border-bottom: 1px solid #f0f0f0; }
             .time-label { font-size: 10px; color: #999; white-space: nowrap; }
@@ -94,28 +94,30 @@ def main():
             .tab-content { display: none; overflow: visible; }
             .tab-content.active { display: block; }
 
-            /* 通用吸顶标题样式 */
+            /* 普通公司名吸顶样式 */
             .sticky-title { 
-                position: -webkit-sticky; position: sticky; top: 0; z-index: 1000; 
+                position: sticky; top: 0; z-index: 1000; 
                 background: rgba(255, 255, 255, 0.98); backdrop-filter: blur(8px);
-                padding: 8px 10px; margin: 0;
+                padding: 8px 0 8px 10px; margin: 0;
                 color: var(--primary); border-left: 4px solid var(--primary); 
                 font-size: 15px; font-weight: 700; border-bottom: 1px solid #f0f0f0;
                 font-family: 'Noto Serif SC', serif;
             }
 
-            /* 关键修改：今日头条专用吸顶样式，取消侧边线并居中 */
+            /* 今日头条专用吸顶：深色背景，白色文字，居中 */
             .headline-title { 
-                position: -webkit-sticky; position: sticky; top: 0; z-index: 1000; 
-                background: rgba(255, 255, 255, 0.98); backdrop-filter: blur(8px);
-                padding: 8px 0; margin: 0;
-                color: var(--primary); border-left: none; text-align: center;
-                font-size: 15px; font-weight: 700; border-bottom: 1px solid #f0f0f0;
+                position: sticky; top: 0; z-index: 1001; 
+                background: var(--header-bg); 
+                padding: 10px 0; margin: 0;
+                color: #ffffff; border-left: none; text-align: center;
+                font-size: 16px; font-weight: 700; letter-spacing: 2px;
+                border-bottom: 1px solid var(--header-bg);
                 font-family: 'Noto Serif SC', serif;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.1);
             }
 
-            .headline-section { margin-bottom: 25px; }
-            .hl-item { padding: 12px 4px; border-bottom: 1px solid var(--border); }
+            .headline-section { margin-bottom: 30px; background: var(--sub-bg); padding: 1px 0 10px 0; border-radius: 4px; }
+            .hl-item { padding: 12px; border-bottom: 1px solid #eef2f6; }
             .hl-item:last-child { border-bottom: none; }
             .hl-title { font-size: 15px; font-weight: 700; color: var(--primary); text-decoration: none; display: block; margin-bottom: 4px; font-family: 'Noto Serif SC', serif; line-height: 1.4; }
             .hl-content { font-size: 12px; color: #444; line-height: 1.6; margin: 6px 0; text-align: justify; }
@@ -178,7 +180,7 @@ def main():
                         </div>
                         <a href="{{hl['链接']}}" target="_blank" class="hl-title">{{hl['标题']}}</a>
                         <div class="hl-content">{{hl['核心内容']}}</div>
-                        <div class="footer" style="margin-top:6px;">
+                        <div class="footer" style="border:none; padding:0; margin-top:4px;">
                             <span>来源: {{hl['来源']}}</span>
                             <a href="{{hl['链接']}}" class="link-btn" target="_blank">阅读原文</a>
                         </div>
