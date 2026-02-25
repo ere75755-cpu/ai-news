@@ -15,7 +15,6 @@ def main():
         df = pd.read_csv(SHEET_URL)
         df.columns = [c.strip() for c in df.columns]
         
-        # 兼容性清洗
         name_map = {'字节': '字节跳动', '阿里': '阿里巴巴', 'Baidu': '百度', 'minimax': 'MiniMax', '智谱AI': '智谱'}
         df['公司'] = df['公司'].replace(name_map)
         
@@ -27,11 +26,9 @@ def main():
     except Exception as e:
         print(f"数据读取失败: {e}"); return
 
-    # 关键：中英文混合首字母排序（a-z），使用编码处理实现类似拼音排序的效果
     all_unique_companies = sorted(df['公司'].unique().tolist(), 
                                   key=lambda x: x.encode('gbk') if isinstance(x, str) else x)
 
-    # 排序权重逻辑
     def get_sort_score(row):
         c_val = row['公司']
         if c_val in CORE_COMPANIES: c_idx = CORE_COMPANIES.index(c_val)
@@ -45,7 +42,6 @@ def main():
     df_sorted = df.sort_values(by=['日期', 'sort_score'], ascending=[False, True])
     all_dates = df_sorted['日期'].unique().tolist()
 
-    # 3. 组织多维度数据
     news_data_map = {}
     headlines_map = {}
     for date in all_dates:
@@ -66,7 +62,7 @@ def main():
 
     final_json_str = json.dumps(df.to_dict('records'), ensure_ascii=False)
 
-    # 4. HTML 模板定义 (精细化字号版)
+    # 4. HTML 模板 (去掉今日头条的小框框)
     template_str = """
     <!DOCTYPE html>
     <html lang="zh-CN">
@@ -76,51 +72,45 @@ def main():
         <title>全球 AI 核心动态内参</title>
         <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@700&display=swap" rel="stylesheet">
         <style>
-            :root { --primary: #1a73e8; --bg: #ffffff; --text: #2c3e50; --border: #eeeeee; }
+            :root { --primary: #1a73e8; --bg: #ffffff; --text: #2c3e50; --border: #eeeeee; --red: #d93025; }
             body { 
-                font-family: -apple-system, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif; 
-                background: var(--bg); color: var(--text); margin: 0; line-height: 1.6; letter-spacing: 0.01em; 
+                font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; 
+                background: var(--bg); color: var(--text); margin: 0; line-height: 1.6; 
                 -webkit-font-smoothing: antialiased;
             }
-            .container { max-width: 780px; margin: auto; padding: 10px; }
+            .container { max-width: 780px; margin: auto; padding: 10px; overflow: visible; }
+            header h1 { font-family: 'Noto Serif SC', serif; text-align: center; font-size: 20px; margin: 15px 0 10px; color: #1a1a1a; }
             
-            /* 大标题：权威且克制 */
-            header h1 { 
-                font-family: 'Noto Serif SC', serif; text-align: center; 
-                font-size: 22px; margin: 15px 0 10px; color: #1a1a1a; 
-            }
-            
-            /* 控制栏：手机端强制一行，字号极细 */
-            .control-bar { 
-                display: flex; justify-content: space-between; align-items: center; 
-                margin-bottom: 12px; padding: 0 4px 6px 4px; border-bottom: 1px solid #f0f0f0;
-                flex-wrap: nowrap;
-            }
-            .time-label { font-size: 10px; color: #95a5a6; white-space: nowrap; flex-shrink: 1; }
-            .date-picker-wrap { flex-shrink: 0; display: flex; align-items: center; margin-left: 5px; }
-            .date-picker { font-size: 10px; color: var(--primary); font-weight: bold; border: 1px solid #eee; border-radius: 2px; padding: 1px 3px; background: #fbfbfb; }
+            .control-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding: 0 4px 6px 4px; border-bottom: 1px solid #f0f0f0; }
+            .time-label { font-size: 10px; color: #999; white-space: nowrap; }
+            .date-picker { font-size: 10px; color: var(--primary); font-weight: bold; border: 1px solid #ddd; border-radius: 2px; padding: 1px 2px; background: transparent; }
 
-            /* 导航居中 */
             .tabs-nav { display: flex; justify-content: center; margin-bottom: 15px; border-bottom: 1px solid #eee; }
-            .tab-btn { padding: 8px 16px; cursor: pointer; border: none; background: none; font-size: 13.5px; font-weight: 600; color: #95a5a6; transition: 0.2s; position: relative; }
+            .tab-btn { padding: 8px 16px; cursor: pointer; border: none; background: none; font-size: 13.5px; font-weight: 600; color: #999; position: relative; }
             .tab-btn.active { color: var(--primary) !important; }
             .tab-btn.active::after { content: ''; position: absolute; bottom: -1px; left: 0; width: 100%; height: 2px; background: var(--primary); }
 
-            .tab-content { display: none; }
+            .tab-content { display: none; overflow: visible; }
             .tab-content.active { display: block; }
 
-            /* 今日头条：层级分明 */
-            .headline-section { background: #fff; padding: 14px; border: 1px solid var(--primary); margin-bottom: 20px; position: relative; border-radius: 2px; }
-            .headline-label { background: #d93025; color: #fff; padding: 2px 6px; font-size: 9px; font-weight: bold; position: absolute; top: -10px; left: 10px; border-radius: 1px; }
-            .hl-item { border-bottom: 1px dashed #eee; padding: 10px 0; }
-            .hl-item:last-child { border-bottom: none; }
-            .hl-title { font-size: 16px; font-weight: 700; color: var(--primary); text-decoration: none; display: block; margin-bottom: 5px; font-family: 'Noto Serif SC', serif; line-height: 1.4; }
-            .hl-content { font-size: 13px; color: #34495e; line-height: 1.7; margin: 6px 0; text-align: justify; }
+            /* 今日头条 - 优化：去掉标题边框，改用文字样式 */
+            .headline-section { background: #fff; padding: 0 4px; margin-bottom: 30px; border-radius: 2px; }
+            .headline-header { 
+                display: flex; align-items: center; 
+                color: var(--red); font-size: 13px; font-weight: 800; 
+                margin-bottom: 10px; padding-left: 0;
+            }
+            .headline-header::before { 
+                content: ''; display: inline-block; width: 3px; height: 13px; 
+                background: var(--red); margin-right: 6px; 
+            }
+            .hl-item { border: 1px solid var(--primary); padding: 12px; margin-bottom: 10px; border-radius: 2px; box-shadow: 0 2px 4px rgba(26,115,232,0.05); }
+            .hl-title { font-size: 16px; font-weight: 700; color: var(--primary); text-decoration: none; display: block; margin-bottom: 4px; font-family: 'Noto Serif SC', serif; line-height: 1.4; }
+            .hl-content { font-size: 13px; color: #444; line-height: 1.6; margin: 6px 0; text-align: justify; }
 
-            /* 公司标题吸顶：缩小字号 */
             .company-section { margin-top: 20px; }
             .co-title { 
-                position: sticky; top: 0; z-index: 100; 
+                position: sticky; top: 0; z-index: 1000; 
                 background: rgba(255, 255, 255, 0.98); backdrop-filter: blur(8px);
                 padding: 8px 0 8px 10px; margin: 0;
                 color: var(--primary); border-left: 4px solid var(--primary); 
@@ -128,34 +118,25 @@ def main():
                 font-family: 'Noto Serif SC', serif;
             }
             
-            .news-item { padding: 12px 4px; border-bottom: 1px solid var(--border); cursor: pointer; }
-            .news-item:hover { background: #fafafa; }
-            
-            .tag-group { margin-bottom: 6px; display: flex; gap: 6px; align-items: center; }
-            .tag { font-size: 9px; padding: 1px 5px; font-weight: 600; background: #f1f3f4; color: #7f8c8d; border-radius: 2px; }
+            .news-item { padding: 10px 4px; border-bottom: 1px solid var(--border); cursor: pointer; }
+            .tag-group { margin-bottom: 4px; display: flex; gap: 6px; align-items: center; }
+            .tag { font-size: 9px; padding: 1px 5px; font-weight: 600; background: #f1f3f4; color: #888; border-radius: 2px; }
             .tag-important { background: #e8f0fe; color: var(--primary); }
             .tag-domestic { background: #fff7e0; color: #f39c12; }
             
-            /* 新闻标题：手机阅读核心 */
-            .title-row { font-size: 14.5px; font-weight: 600; color: #1a1a1a; display: flex; justify-content: space-between; align-items: center; line-height: 1.4; }
-            .title-row::after { content: '+'; font-size: 14px; color: #bdc3c7; margin-left: 10px; }
+            .title-row { font-size: 14px; font-weight: 600; color: #2c3e50; display: flex; justify-content: space-between; align-items: center; }
+            .title-row::after { content: '+'; font-size: 14px; color: #ccc; }
             .news-item.open .title-row::after { content: '−'; color: var(--primary); }
             
-            /* 展开内容：字号略小 */
-            .content-box { display: none; padding: 10px 0; font-size: 13px; color: #444; line-height: 1.75; text-align: justify; }
+            .content-box { display: none; padding: 8px 0; font-size: 12.5px; color: #444; line-height: 1.7; text-align: justify; }
             .news-item.open .content-box { display: block; }
             
-            .footer { font-size: 10px; color: #95a5a6; display: flex; justify-content: space-between; margin-top: 10px; }
+            .footer { font-size: 10px; color: #aaa; display: flex; justify-content: space-between; margin-top: 8px; }
             .link-btn { color: var(--primary); text-decoration: none; font-weight: 700; }
 
-            /* 手机端极端适配 */
             @media (max-width: 600px) {
-                header h1 { font-size: 19px; }
-                .time-label { font-size: 9px; letter-spacing: -0.03em; }
-                .tab-btn { padding: 8px 10px; font-size: 13px; }
-                .co-title { font-size: 14.5px; }
-                .title-row { font-size: 14px; }
-                .content-box { font-size: 12.5px; }
+                header h1 { font-size: 18px; }
+                .hl-title { font-size: 15px; }
             }
         </style>
     </head>
@@ -172,7 +153,7 @@ def main():
             <div class="control-bar">
                 <div id="current-time-label" class="time-label">监测：加载中...</div>
                 <div class="date-picker-wrap">
-                    <span style="font-size:10px; font-weight:bold; color:#95a5a6;">日期：</span>
+                    <span style="font-size:10px; color:#999;">日期：</span>
                     <select id="dateSelect" class="date-picker" onchange="changeDate(this.value)">
                         {% for d in dates %}<option value="{{d}}">{{d}}</option>{% endfor %}
                     </select>
@@ -183,7 +164,7 @@ def main():
             <div id="date-group-{{d}}" class="date-container" style="display: {{ 'block' if loop.first else 'none' }}">
                 {% if headlines_map[d] %}
                 <div class="headline-section">
-                    <span class="headline-label">今日头条</span>
+                    <div class="headline-header">今日头条</div>
                     {% for hl in headlines_map[d] %}
                     <div class="hl-item">
                         <div class="tag-group">
@@ -192,7 +173,7 @@ def main():
                         </div>
                         <a href="{{hl['链接']}}" target="_blank" class="hl-title">{{hl['标题']}}</a>
                         <div class="hl-content">{{hl['核心内容']}}</div>
-                        <div class="footer">
+                        <div class="footer" style="border:none; padding:0;">
                             <span>来源: {{hl['来源']}}</span>
                             <a href="{{hl['链接']}}" class="link-btn" target="_blank">阅读原文 →</a>
                         </div>
@@ -246,7 +227,6 @@ def main():
             document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
             document.getElementById('panel-' + id).classList.add('active');
             document.getElementById('btn-' + id).classList.add('active');
-            window.scrollTo(0,0);
             if(id === 'filter') doSearch();
         }
 
@@ -289,15 +269,7 @@ def main():
     </html>
     """
 
-    # 执行渲染
-    html = Template(template_str).render(
-        dates=all_dates, 
-        news_data_map=news_data_map, 
-        headlines_map=headlines_map, 
-        final_json_str=final_json_str, 
-        all_companies=all_unique_companies
-    )
-    
+    html = Template(template_str).render(dates=all_dates, news_data_map=news_data_map, headlines_map=headlines_map, final_json_str=final_json_str, all_companies=all_unique_companies)
     with open("index.html", "w", encoding="utf-8") as f: f.write(html)
     with open("CNAME", "w") as f: f.write(MY_DOMAIN)
 
