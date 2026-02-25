@@ -208,7 +208,7 @@ def main():
         <div id="filter" class="tab-pane">
             <div style="background:#fff; padding:10px; border:1px solid #ddd; display:flex; gap:8px; margin-bottom:15px; position: sticky; top: 0; z-index: 101;">
                 <select id="f-date" style="flex:1; font-size:11px;"><option value="all">全时间段</option>{% for d in dates %}<option value="{{d}}">{{d}}</option>{% endfor %}</select>
-                <select id="f-co" style="flex:1; font-size:11px;"><option value="all">所有公司主体</option>{% for c in all_companies %}<option value="{{c}}">{{c}}</option>{% endfor %}</select>
+                <select id="f-co" style="flex:1; font-size:11px;"><option value="all">所有公司</option>{% for c in all_companies %}<option value="{{c}}">{{c}}</option>{% endfor %}</select>
                 <button onclick="doSearch()" style="background:var(--primary); color:white; border:none; padding:4px 12px; font-weight:bold; font-size:11px; border-radius:2px;">搜索</button>
             </div>
             <div id="results"></div>
