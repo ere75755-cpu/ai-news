@@ -7,14 +7,14 @@
         <title>全球 AI 核心动态内参</title>
         <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@700&display=swap" rel="stylesheet">
         <style>
-            :root { --primary: #1a73e8; --bg: #ffffff; --text: #2c3e50; --border: #eeeeee; --red: #d93025; --sub-bg: #f9f9f9; }
+            :root { --primary: #1a73e8; --bg: #ffffff; --text: #2c3e50; --border: #eeeeee; --dark: #1a1a1a; }
             body { 
                 font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; 
                 background: var(--bg); color: var(--text); margin: 0; line-height: 1.5; 
                 -webkit-font-smoothing: antialiased;
             }
             .container { max-width: 780px; margin: auto; padding: 10px; overflow: visible; }
-            header h1 { font-family: 'Noto Serif SC', serif; text-align: center; font-size: 20px; margin: 15px 0 10px; color: #1a1a1a; }
+            header h1 { font-family: 'Noto Serif SC', serif; text-align: center; font-size: 20px; margin: 15px 0 10px; color: var(--dark); }
             
             .control-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding: 0 4px 6px 4px; border-bottom: 1px solid #f0f0f0; }
             .time-label { font-size: 10px; color: #999; white-space: nowrap; }
@@ -28,27 +28,8 @@
             .tab-content { display: none; overflow: visible; }
             .tab-content.active { display: block; }
 
-            /* 今日头条 - 优化：去框化，使用背景区分 */
-            .headline-section { margin-bottom: 30px; }
-            .headline-header { 
-                display: flex; align-items: center; 
-                color: var(--red); font-size: 13px; font-weight: 800; 
-                margin-bottom: 12px; padding-left: 0;
-            }
-            .headline-header::before { 
-                content: ''; display: inline-block; width: 3px; height: 13px; 
-                background: var(--red); margin-right: 6px; 
-            }
-            /* 头条单条新闻：无边框，改用极浅灰底 */
-            .hl-item { background: var(--sub-bg); padding: 12px; margin-bottom: 8px; border-radius: 2px; border: none; }
-            /* 头条标题字号与公司名对齐 */
-            .hl-title { font-size: 15px; font-weight: 700; color: var(--primary); text-decoration: none; display: block; margin-bottom: 4px; font-family: 'Noto Serif SC', serif; line-height: 1.4; }
-            /* 头条内容字体缩小 */
-            .hl-content { font-size: 12px; color: #444; line-height: 1.6; margin: 6px 0; text-align: justify; }
-
-            /* 公司标题吸顶 */
-            .company-section { margin-top: 20px; }
-            .co-title { 
+            /* 通用吸顶标题样式 (用于今日头条和公司名) */
+            .sticky-title { 
                 position: sticky; top: 0; z-index: 1000; 
                 background: rgba(255, 255, 255, 0.98); backdrop-filter: blur(8px);
                 padding: 8px 0 8px 10px; margin: 0;
@@ -56,8 +37,17 @@
                 font-size: 15px; font-weight: 700; border-bottom: 1px solid #f0f0f0;
                 font-family: 'Noto Serif SC', serif;
             }
-            
+
+            .headline-section { margin-bottom: 25px; }
+            .hl-item { padding: 12px 4px; border-bottom: 1px solid var(--border); }
+            .hl-item:last-child { border-bottom: none; }
+            .hl-title { font-size: 15px; font-weight: 700; color: var(--primary); text-decoration: none; display: block; margin-bottom: 4px; font-family: 'Noto Serif SC', serif; line-height: 1.4; }
+            .hl-content { font-size: 12px; color: #444; line-height: 1.6; margin: 6px 0; text-align: justify; }
+
+            .company-section { margin-top: 20px; }
             .news-item { padding: 10px 4px; border-bottom: 1px solid var(--border); cursor: pointer; }
+            .news-item:last-child { border-bottom: none; }
+            
             .tag-group { margin-bottom: 4px; display: flex; gap: 6px; align-items: center; }
             .tag { font-size: 9px; padding: 1px 5px; font-weight: 600; background: #f1f3f4; color: #888; border-radius: 2px; }
             .tag-important { background: #e8f0fe; color: var(--primary); }
@@ -67,7 +57,6 @@
             .title-row::after { content: '+'; font-size: 14px; color: #ccc; }
             .news-item.open .title-row::after { content: '−'; color: var(--primary); }
             
-            /* 正文核心内容缩小 */
             .content-box { display: none; padding: 8px 0; font-size: 12px; color: #444; line-height: 1.7; text-align: justify; }
             .news-item.open .content-box { display: block; }
             
@@ -76,7 +65,7 @@
 
             @media (max-width: 600px) {
                 header h1 { font-size: 18px; }
-                .hl-title, .co-title { font-size: 14.5px; } /* 移动端微调，保持统一 */
+                .hl-title, .sticky-title { font-size: 14.5px; }
             }
         </style>
     </head>
@@ -104,7 +93,7 @@
             <div id="date-group-2026/2/24" class="date-container" style="display: block">
                 
                 <div class="headline-section">
-                    <div class="headline-header">今日头条</div>
+                    <h2 class="sticky-title">今日头条</h2>
                     
                     <div class="hl-item">
                         <div class="tag-group">
@@ -113,9 +102,9 @@
                         </div>
                         <a href="https://x.com/OpenAIDevs/status/2026014334787461508" target="_blank" class="hl-title">OpenAI语音升级：实时API上线gpt-realtime-1.5，确立低延迟语音交互标杆</a>
                         <div class="hl-content">OpenAI在Realtime API中正式上线gpt-realtime-1.5模型，通过更先进的音频流处理架构实现了极低的语音响应延迟。该模型支持更自然的情绪感知与打断处理，为开发者构建下一代语音AI助手、实时翻译及虚拟客服提供了性能支持，进一步巩固了OpenAI在实时多模态交互领域的技术统治力。</div>
-                        <div class="footer" style="border:none; padding:0; margin-top:6px;">
+                        <div class="footer" style="margin-top:6px;">
                             <span>来源: Twitter</span>
-                            <a href="https://x.com/OpenAIDevs/status/2026014334787461508" class="link-btn" target="_blank">阅读原文 →</a>
+                            <a href="https://x.com/OpenAIDevs/status/2026014334787461508" class="link-btn" target="_blank">阅读原文</a>
                         </div>
                     </div>
                     
@@ -126,9 +115,9 @@
                         </div>
                         <a href="https://mp.weixin.qq.com/s/b1jXktPv6dqDIlejHZyx0Q" target="_blank" class="hl-title">谷歌音乐AI：推出免费生成大招，通过零成本配乐重塑短视频创作生态</a>
                         <div class="hl-content">谷歌发布针对短视频创作者的免费音乐生成模型，用户无需支付版权费即可生成高质量配乐。该技术利用扩散模型实现音画同步增强，大幅降低了内容创作的门槛与成本，此举旨在利用AI技术护城河强化其在短视频分发领域的竞争力，直接冲击了传统商用音乐素材库的订阅模式与分成体系。</div>
-                        <div class="footer" style="border:none; padding:0; margin-top:6px;">
+                        <div class="footer" style="margin-top:6px;">
                             <span>来源: 火狸上行研报</span>
-                            <a href="https://mp.weixin.qq.com/s/b1jXktPv6dqDIlejHZyx0Q" class="link-btn" target="_blank">阅读原文 →</a>
+                            <a href="https://mp.weixin.qq.com/s/b1jXktPv6dqDIlejHZyx0Q" class="link-btn" target="_blank">阅读原文</a>
                         </div>
                     </div>
                     
@@ -139,9 +128,9 @@
                         </div>
                         <a href="https://9to5google.com/2026/02/23/gemini-video-templates/" target="_blank" class="hl-title">Gemini视频模板：基于Veo 3.1上线15种预设风格，大幅降低专业视频制作门槛</a>
                         <div class="hl-content">Google Gemini在网页端与移动端同步上线基于Veo 3.1模型的视频生成功能，用户通过15种预设风格模板即可快速生成高质量短视频。这一更新将原本复杂的提示词工程简化为视觉化选择，显著提升了普通用户的创作参与度，标志着Veo模型已从实验室研发进入大规模用户覆盖的实用化阶段。</div>
-                        <div class="footer" style="border:none; padding:0; margin-top:6px;">
+                        <div class="footer" style="margin-top:6px;">
                             <span>来源: 9to5google</span>
-                            <a href="https://9to5google.com/2026/02/23/gemini-video-templates/" class="link-btn" target="_blank">阅读原文 →</a>
+                            <a href="https://9to5google.com/2026/02/23/gemini-video-templates/" class="link-btn" target="_blank">阅读原文</a>
                         </div>
                     </div>
                     
@@ -152,9 +141,9 @@
                         </div>
                         <a href="https://mp.weixin.qq.com/s/f9hshd46Rkyq8oph1zk65g" target="_blank" class="hl-title">春节AI战役：各大厂投入超亿元，红包+模型联动催生国民级AI普及潮</a>
                         <div class="hl-content">2026年春节期间爆发AI应用抢位战，各大厂商通过红包互动、数字人拜年等形式狂掷算力资源。统计显示，阿里、字节、腾讯等通过模型赋能春节互动场景，不仅推高了端侧AI的日活数据，更完成了一次覆盖数亿人的AI技术科普，算力消耗峰值创下历史新高，确立了AI作为互联网基础设施的新常态。</div>
-                        <div class="footer" style="border:none; padding:0; margin-top:6px;">
+                        <div class="footer" style="margin-top:6px;">
                             <span>来源: 晚点LatePost</span>
-                            <a href="https://mp.weixin.qq.com/s/f9hshd46Rkyq8oph1zk65g" class="link-btn" target="_blank">阅读原文 →</a>
+                            <a href="https://mp.weixin.qq.com/s/f9hshd46Rkyq8oph1zk65g" class="link-btn" target="_blank">阅读原文</a>
                         </div>
                     </div>
                     
@@ -163,7 +152,7 @@
 
                 
                 <div class="company-section">
-                    <h2 class="co-title">OpenAI</h2>
+                    <h2 class="sticky-title">OpenAI</h2>
                     
                     <div class="news-item" onclick="this.classList.toggle('open')">
                         <div class="tag-group">
@@ -243,7 +232,7 @@
                 </div>
                 
                 <div class="company-section">
-                    <h2 class="co-title">Anthropic</h2>
+                    <h2 class="sticky-title">Anthropic</h2>
                     
                     <div class="news-item" onclick="this.classList.toggle('open')">
                         <div class="tag-group">
@@ -368,7 +357,7 @@
                 </div>
                 
                 <div class="company-section">
-                    <h2 class="co-title">Google</h2>
+                    <h2 class="sticky-title">Google</h2>
                     
                     <div class="news-item" onclick="this.classList.toggle('open')">
                         <div class="tag-group">
@@ -478,7 +467,7 @@
                 </div>
                 
                 <div class="company-section">
-                    <h2 class="co-title">字节跳动</h2>
+                    <h2 class="sticky-title">字节跳动</h2>
                     
                     <div class="news-item" onclick="this.classList.toggle('open')">
                         <div class="tag-group">
@@ -498,7 +487,7 @@
                 </div>
                 
                 <div class="company-section">
-                    <h2 class="co-title">阿里巴巴</h2>
+                    <h2 class="sticky-title">阿里巴巴</h2>
                     
                     <div class="news-item" onclick="this.classList.toggle('open')">
                         <div class="tag-group">
@@ -518,7 +507,7 @@
                 </div>
                 
                 <div class="company-section">
-                    <h2 class="co-title">Kimi / MiniMax / 智谱</h2>
+                    <h2 class="sticky-title">Kimi / MiniMax / 智谱</h2>
                     
                     <div class="news-item" onclick="this.classList.toggle('open')">
                         <div class="tag-group">
@@ -557,7 +546,7 @@
                 </div>
                 
                 <div class="company-section">
-                    <h2 class="co-title">行业内其余新闻</h2>
+                    <h2 class="sticky-title">行业内其余新闻</h2>
                     
                     <div class="news-item" onclick="this.classList.toggle('open')">
                         <div class="tag-group">
@@ -804,7 +793,7 @@
             <div id="date-group-2026/2/11" class="date-container" style="display: none">
                 
                 <div class="headline-section">
-                    <div class="headline-header">今日头条</div>
+                    <h2 class="sticky-title">今日头条</h2>
                     
                     <div class="hl-item">
                         <div class="tag-group">
@@ -813,9 +802,9 @@
                         </div>
                         <a href="https://mp.weixin.qq.com/s/CXgKnRwhO4Swu0Pw1NvR-w" target="_blank" class="hl-title">Claude-Opus-4.6测评：代码能力全球第一，思维链推理长度提升40%</a>
                         <div class="hl-content">针对最新发布的Claude-Opus-4.6进行的中文深度测评显示，该模型在编程任务中的准确率与逻辑严密性已超越GPT-4o，位居全球第一。特别是在处理复杂的中文语境指令时，Opus-4.6展现了极强的语义理解能力，其思维链（CoT）推理长度提升了40%，能够自主完成多步骤的逻辑推演。测评指出，该模型在智能体（Agent）协作场景下表现尤为突出，能够精准调用外部工具并进行自我纠错。这一技术突破巩固了Anthropic在高端推理模型领域的领先地位，预示着AI在复杂软件工程与科研辅助领域的应用将进入高可靠性阶段。</div>
-                        <div class="footer" style="border:none; padding:0; margin-top:6px;">
+                        <div class="footer" style="margin-top:6px;">
                             <span>来源: SuperCLUE</span>
-                            <a href="https://mp.weixin.qq.com/s/CXgKnRwhO4Swu0Pw1NvR-w" class="link-btn" target="_blank">阅读原文 →</a>
+                            <a href="https://mp.weixin.qq.com/s/CXgKnRwhO4Swu0Pw1NvR-w" class="link-btn" target="_blank">阅读原文</a>
                         </div>
                     </div>
                     
@@ -826,9 +815,9 @@
                         </div>
                         <a href="https://mp.weixin.qq.com/s/wfClFNIResatBHoJvSL1pw" target="_blank" class="hl-title">Seedream 5.0预览：视频逻辑一致性提升35%，字节跳动强化AI短视频创作能力</a>
                         <div class="hl-content">字节跳动正式发布其视频生成模型Seedream 5.0的预览版本。该版本在底层架构上引入了更强的时空注意力机制，显著解决了视频生成中常见的物体形变与逻辑断层问题，视频生成的逻辑一致性较4.0版本提升了35%。Seedream 5.0支持生成长达15秒的高清视频片段，并在光影渲染与物理模拟上达到了行业领先水平。这一动作旨在强化字节跳动在短视频创作工具链上的AI护城河，通过降低高质量视频的生产门槛，进一步巩固其在内容生态领域的竞争优势。</div>
-                        <div class="footer" style="border:none; padding:0; margin-top:6px;">
+                        <div class="footer" style="margin-top:6px;">
                             <span>来源: 智东西</span>
-                            <a href="https://mp.weixin.qq.com/s/wfClFNIResatBHoJvSL1pw" class="link-btn" target="_blank">阅读原文 →</a>
+                            <a href="https://mp.weixin.qq.com/s/wfClFNIResatBHoJvSL1pw" class="link-btn" target="_blank">阅读原文</a>
                         </div>
                     </div>
                     
@@ -839,9 +828,9 @@
                         </div>
                         <a href="https://mp.weixin.qq.com/s/D8nwRYxQp7wv9yzfk8FL9A" target="_blank" class="hl-title">Qwen-Image-2.0发布：OCR准确率提升20%支持超长图解析，多模态性能逼近GPT-4V</a>
                         <div class="hl-content">阿里达摩院正式发布Qwen-Image-2.0，该模型在视觉理解与图文交互能力上实现了质的飞跃。通过引入动态分辨率视觉编码器与增强型OCR（光学字符识别）引擎，模型在处理包含密集文字的复杂场景时，识别准确率较上一代提升了20%，且能精准解析长宽比极端的超长图片。在主流多模态基准测试中，Qwen-Image-2.0的综合表现已逼近GPT-4V。这一技术迭代为电商自动化、文档数字化及智能安防等领域提供了更强大的视觉感知底座。阿里的这一动作巩固了其在多模态大模型领域的领先优势，预示着AI视觉理解正从“看懂大意”向“精准解析细节”的工业级应用演进。</div>
-                        <div class="footer" style="border:none; padding:0; margin-top:6px;">
+                        <div class="footer" style="margin-top:6px;">
                             <span>来源: 千问大模型</span>
-                            <a href="https://mp.weixin.qq.com/s/D8nwRYxQp7wv9yzfk8FL9A" class="link-btn" target="_blank">阅读原文 →</a>
+                            <a href="https://mp.weixin.qq.com/s/D8nwRYxQp7wv9yzfk8FL9A" class="link-btn" target="_blank">阅读原文</a>
                         </div>
                     </div>
                     
@@ -850,7 +839,7 @@
 
                 
                 <div class="company-section">
-                    <h2 class="co-title">OpenAI</h2>
+                    <h2 class="sticky-title">OpenAI</h2>
                     
                     <div class="news-item" onclick="this.classList.toggle('open')">
                         <div class="tag-group">
@@ -915,7 +904,7 @@
                 </div>
                 
                 <div class="company-section">
-                    <h2 class="co-title">Anthropic</h2>
+                    <h2 class="sticky-title">Anthropic</h2>
                     
                     <div class="news-item" onclick="this.classList.toggle('open')">
                         <div class="tag-group">
@@ -980,7 +969,7 @@
                 </div>
                 
                 <div class="company-section">
-                    <h2 class="co-title">Google</h2>
+                    <h2 class="sticky-title">Google</h2>
                     
                     <div class="news-item" onclick="this.classList.toggle('open')">
                         <div class="tag-group">
@@ -1075,7 +1064,7 @@
                 </div>
                 
                 <div class="company-section">
-                    <h2 class="co-title">Meta</h2>
+                    <h2 class="sticky-title">Meta</h2>
                     
                     <div class="news-item" onclick="this.classList.toggle('open')">
                         <div class="tag-group">
@@ -1095,7 +1084,7 @@
                 </div>
                 
                 <div class="company-section">
-                    <h2 class="co-title">字节跳动</h2>
+                    <h2 class="sticky-title">字节跳动</h2>
                     
                     <div class="news-item" onclick="this.classList.toggle('open')">
                         <div class="tag-group">
@@ -1130,7 +1119,7 @@
                 </div>
                 
                 <div class="company-section">
-                    <h2 class="co-title">阿里巴巴</h2>
+                    <h2 class="sticky-title">阿里巴巴</h2>
                     
                     <div class="news-item" onclick="this.classList.toggle('open')">
                         <div class="tag-group">
@@ -1255,7 +1244,7 @@
                 </div>
                 
                 <div class="company-section">
-                    <h2 class="co-title">腾讯</h2>
+                    <h2 class="sticky-title">腾讯</h2>
                     
                     <div class="news-item" onclick="this.classList.toggle('open')">
                         <div class="tag-group">
@@ -1275,7 +1264,7 @@
                 </div>
                 
                 <div class="company-section">
-                    <h2 class="co-title">百度</h2>
+                    <h2 class="sticky-title">百度</h2>
                     
                     <div class="news-item" onclick="this.classList.toggle('open')">
                         <div class="tag-group">
@@ -1295,7 +1284,7 @@
                 </div>
                 
                 <div class="company-section">
-                    <h2 class="co-title">Kimi / MiniMax / 智谱</h2>
+                    <h2 class="sticky-title">Kimi / MiniMax / 智谱</h2>
                     
                     <div class="news-item" onclick="this.classList.toggle('open')">
                         <div class="tag-group">
@@ -1334,7 +1323,7 @@
                 </div>
                 
                 <div class="company-section">
-                    <h2 class="co-title">行业内其余新闻</h2>
+                    <h2 class="sticky-title">行业内其余新闻</h2>
                     
                     <div class="news-item" onclick="this.classList.toggle('open')">
                         <div class="tag-group">
@@ -1513,6 +1502,7 @@
             document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
             document.getElementById('panel-' + id).classList.add('active');
             document.getElementById('btn-' + id).classList.add('active');
+            window.scrollTo(0,0);
             if(id === 'filter') doSearch();
         }
 
@@ -1536,8 +1526,7 @@
         };
 
         function doSearch() {
-            const d = document.getElementById('f-date').value;
-            const c = document.getElementById('f-co').value;
+            const d = document.getElementById('f-date').value, c = document.getElementById('f-co').value;
             const filtered = rawData.filter(it => (d === 'all' || it['日期'] == d) && (c === 'all' || it['公司'] == c));
             const resDiv = document.getElementById('results');
             resDiv.innerHTML = filtered.length ? '' : '<p style="text-align:center; padding:30px; font-size:11px; color:#999;">无匹配情报</p>';
