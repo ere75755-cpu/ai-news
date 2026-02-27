@@ -2,24 +2,25 @@ import pandas as pd
 from jinja2 import Template
 import json
 import sys
+import os
 
 # ==========================================
 # 1. 基础配置与排序权重定义
 # ==========================================
-SHEET_URL = "https://docs.google.com/spreadsheets/d/1CgheqoqcKn-klAJCS8fWRdyP1ybBlG8ReqPLsqkFpl8/export?format=csv&gid=0"
+DATA_FILE = "data.csv"  # 切换为本地文件读取
 MY_DOMAIN = "www.aipulse.run"
 
-# 一级板块：核心大厂（Google 领先于 Anthropic）
+# 一级板块：核心大厂
 CORE_COMPANIES = ['OpenAI', 'Google', 'Anthropic', 'Meta', '字节跳动', '阿里巴巴', '腾讯', '百度']
 
-# 二级板块：其余前沿势力（Kimi, MiniMax, 智谱, xAI, 可灵, DeepSeek）
+# 二级板块：重点关注模型
 SECONDARY_COMPANIES = ['Kimi', 'MiniMax', '智谱', 'xAI', '可灵', 'DeepSeek']
-SECONDARY_TITLE = "其余前沿势力"
+SECONDARY_TITLE = "重点关注模型"
 
 # 话题标准排序
 TOPIC_ORDER = ['技术迭代', '产品动态', '商业动态', '春节活动', '数据洞察']
 
-# 三级板块：其余行业新闻排序权重（包含硬件白名单）
+# 其余行业新闻排序权重（C端 > 算力 > 硬件）
 OTHER_PRIORITY = [
     'Perplexity', 'Character.ai', 'Midjourney', 'Pika', 'Runway', 
     'Suno', 'Luma', 'Grok', 'Mistral', 'Cohere', 'Hugging Face', 'OpenClaw',
@@ -33,32 +34,44 @@ def main():
     # ==========================================
     # 2. 数据读取与预处理
     # ==========================================
+    if not os.path.exists(DATA_FILE):
+        print(f"❌ 错误：找不到文件 {DATA_FILE}。请确保该文件已上传至仓库。")
+        sys.exit(1)
+
     try:
-        df = pd.read_csv(SHEET_URL)
-        df.columns = [c.strip() for c in df.columns]
-        
-        # 统一命名规范
-        name_map = {
-            '字节': '字节跳动', '阿里': '阿里巴巴', 'Baidu': '百度', 
-            'minimax': 'MiniMax', '智谱AI': '智谱', 'OpenAI ': 'OpenAI'
-        }
-        df['公司'] = df['公司'].replace(name_map)
-        
-        if '是否头条' in df.columns:
-            df['是否头条'] = pd.to_numeric(df['是否头条'], errors='coerce').fillna(0).astype(int)
-        else:
-            df['是否头条'] = 0
-            
-        df = df.fillna("")
+        # 尝试 UTF-8 编码读取（GitHub 默认）
+        df = pd.read_csv(DATA_FILE, encoding='utf-8')
+    except UnicodeDecodeError:
+        # 如果失败则尝试 GBK 编码（Excel 本地保存常见编码）
+        df = pd.read_csv(DATA_FILE, encoding='gbk')
     except Exception as e:
         print(f"❌ 数据读取失败: {e}")
         sys.exit(1)
 
+    # 清洗列名和空值
+    df.columns = [c.strip() for c in df.columns]
+    
+    # 统一命名映射
+    name_map = {
+        '字节': '字节跳动', '阿里': '阿里巴巴', 'Baidu': '百度', 
+        'minimax': 'MiniMax', '智谱AI': '智谱', 'OpenAI ': 'OpenAI'
+    }
+    df['公司'] = df['公司'].replace(name_map)
+    
+    # 处理“是否头条”列
+    if '是否头条' in df.columns:
+        df['是否头条'] = pd.to_numeric(df['是否头条'], errors='coerce').fillna(0).astype(int)
+    else:
+        df['是否头条'] = 0
+        
+    df = df.fillna("")
+
+    # 提取所有不重复公司（供检索使用）
     all_unique_companies = sorted(df['公司'].unique().tolist(), 
                                   key=lambda x: x.encode('gbk') if isinstance(x, str) else x)
 
     # ==========================================
-    # 3. 核心排序分发逻辑
+    # 3. 核心分发逻辑
     # ==========================================
     
     def get_sort_score(row):
@@ -71,6 +84,7 @@ def main():
         return (c_idx, t_idx)
 
     df['sort_score'] = df.apply(get_sort_score, axis=1)
+    # 按日期倒序，分值正序（确保核心公司在前）
     df_sorted = df.sort_values(by=['日期', 'sort_score'], ascending=[False, True])
     all_dates = df_sorted['日期'].unique().tolist()
 
@@ -82,13 +96,13 @@ def main():
         headlines_map[date] = day_df[day_df['是否头条'] == 1].to_dict('records')
         news_data_map[date] = {}
         
-        # 1. 核心大厂板块
+        # 1. 核心大厂
         for company in CORE_COMPANIES:
             comp_df = day_df[day_df['公司'] == company]
             if not comp_df.empty:
                 news_data_map[date][company] = comp_df.to_dict('records')
         
-        # 2. 其余前沿势力板块
+        # 2. 重点关注模型
         sec_df = day_df[day_df['公司'].isin(SECONDARY_COMPANIES)].copy()
         if not sec_df.empty:
             sec_df['s_rank'] = sec_df['公司'].apply(lambda x: SECONDARY_COMPANIES.index(x))
@@ -96,7 +110,7 @@ def main():
             sec_df = sec_df.sort_values(by=['s_rank', 't_rank'])
             news_data_map[date][SECONDARY_TITLE] = sec_df.to_dict('records')
         
-        # 3. 其余行业新闻板块
+        # 3. 其余行业新闻（含数据洞察置顶逻辑）
         other_df = day_df[~day_df['公司'].isin(CORE_COMPANIES + SECONDARY_COMPANIES)].copy()
         if not other_df.empty:
             def get_other_rank(row):
@@ -113,7 +127,7 @@ def main():
     final_json_str = json.dumps(df.to_dict('records'), ensure_ascii=False)
 
     # ==========================================
-    # 4. HTML 模板渲染
+    # 4. HTML 模板 (UI 已优化)
     # ==========================================
     template_str = """
     <!DOCTYPE html>
@@ -124,51 +138,26 @@ def main():
         <title>全球 AI 核心动态内参</title>
         <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@700&display=swap" rel="stylesheet">
         <style>
-            :root { 
-                --primary: #1a73e8; 
-                --header-bg: #475569; 
-                --bg: #ffffff; 
-                --text: #334155; 
-                --border: #f1f5f9; 
-                --sub-bg: #f8fafc; 
-            }
-            body { 
-                font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; 
-                background: var(--bg); color: var(--text); margin: 0; line-height: 1.5; 
-                -webkit-font-smoothing: antialiased;
-            }
+            :root { --primary: #1a73e8; --header-bg: #475569; --bg: #ffffff; --text: #334155; --border: #f1f5f9; --sub-bg: #f8fafc; }
+            body { font-family: -apple-system, "PingFang SC", sans-serif; background: var(--bg); color: var(--text); margin: 0; line-height: 1.5; -webkit-font-smoothing: antialiased; }
             .container { max-width: 780px; margin: auto; padding: 10px; }
             header h1 { font-family: 'Noto Serif SC', serif; text-align: center; font-size: 20px; margin: 15px 0 10px; color: #0f172a; }
             .control-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding: 0 4px 6px 4px; border-bottom: 1px solid #f1f5f9; }
             .time-label { font-size: 10px; color: #94a3b8; }
-            .date-picker { font-size: 10px; color: var(--primary); font-weight: bold; border: 1px solid #e2e8f0; border-radius: 2px; padding: 1px 2px; background: transparent; }
+            .date-picker { font-size: 10px; color: var(--primary); font-weight: bold; border: 1px solid #e2e8f0; border-radius: 2px; padding: 1px 2px; background: transparent; cursor: pointer; }
             .tabs-nav { display: flex; justify-content: center; margin-bottom: 15px; border-bottom: 1px solid #f1f5f9; }
             .tab-btn { padding: 8px 16px; cursor: pointer; border: none; background: none; font-size: 13.5px; font-weight: 600; color: #94a3b8; position: relative; }
             .tab-btn.active { color: var(--primary) !important; }
             .tab-btn.active::after { content: ''; position: absolute; bottom: -1px; left: 0; width: 100%; height: 2px; background: var(--primary); }
             .tab-content { display: none; }
             .tab-content.active { display: block; }
-            .sticky-title { 
-                position: -webkit-sticky; position: sticky; top: 0; z-index: 1000; 
-                background: rgba(255, 255, 255, 0.98); backdrop-filter: blur(8px);
-                padding: 8px 0 8px 10px; margin: 0;
-                color: var(--primary); border-left: 4px solid var(--primary); 
-                font-size: 15px; font-weight: 700; border-bottom: 1px solid #f1f5f9;
-                font-family: 'Noto Serif SC', serif;
-            }
-            .headline-title { 
-                position: -webkit-sticky; position: sticky; top: 0; z-index: 1001; 
-                background: var(--header-bg); 
-                padding: 10px 0; margin: 0; color: #ffffff; text-align: center;
-                font-size: 15px; font-weight: 700; letter-spacing: 3px; font-family: 'Noto Serif SC', serif;
-                box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-            }
+            .sticky-title { position: -webkit-sticky; position: sticky; top: 0; z-index: 1000; background: rgba(255, 255, 255, 0.98); backdrop-filter: blur(8px); padding: 8px 0 8px 10px; margin: 0; color: var(--primary); border-left: 4px solid var(--primary); font-size: 15px; font-weight: 700; border-bottom: 1px solid #f1f5f9; font-family: 'Noto Serif SC', serif; }
+            .headline-title { position: -webkit-sticky; position: sticky; top: 0; z-index: 1001; background: var(--header-bg); padding: 10px 0; margin: 0; color: #ffffff; text-align: center; font-size: 15px; font-weight: 700; letter-spacing: 3px; font-family: 'Noto Serif SC', serif; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
             .headline-section { margin-bottom: 30px; background: var(--sub-bg); padding-bottom: 10px; border-radius: 0 0 4px 4px; }
             .hl-item { padding: 12px; border-bottom: 1px solid #edf2f7; }
             .hl-item:last-child { border-bottom: none; }
             .hl-title { font-size: 15px; font-weight: 700; color: #1e293b; text-decoration: none; display: block; margin-bottom: 4px; font-family: 'Noto Serif SC', serif; line-height: 1.4; }
             .hl-content { font-size: 12px; color: #475569; line-height: 1.6; margin: 6px 0; text-align: justify; }
-            .company-section { margin-top: 20px; }
             .news-item { padding: 10px 4px; border-bottom: 1px solid #f1f5f9; cursor: pointer; }
             .tag-group { margin-bottom: 4px; display: flex; gap: 6px; align-items: center; }
             .tag { font-size: 9px; padding: 1px 5px; font-weight: 600; background: #f1f5f9; color: #64748b; border-radius: 2px; }
@@ -181,10 +170,6 @@ def main():
             .news-item.open .content-box { display: block; }
             .footer { font-size: 10px; color: #94a3b8; display: flex; justify-content: space-between; margin-top: 8px; }
             .link-btn { color: var(--primary); text-decoration: none; font-weight: 700; }
-            @media (max-width: 600px) {
-                header h1 { font-size: 18px; }
-                .hl-title, .sticky-title, .headline-title { font-size: 14px; }
-            }
         </style>
     </head>
     <body>
@@ -232,7 +217,7 @@ def main():
                     <div class="news-item" onclick="this.classList.toggle('open')">
                         <div class="tag-group">
                             <span class="tag tag-important">{{it['话题']}}</span>
-                            {% if co == SECOND_TITLE or co == '其余行业新闻' %}
+                            {% if co == SECONDARY_TITLE or co == '其余行业新闻' %}
                             <span class="tag tag-domestic">{{it['公司']}}</span>
                             {% endif %}
                         </div>
@@ -297,13 +282,14 @@ def main():
     </html>
     """
 
+    # 渲染
     html = Template(template_str).render(
         dates=all_dates, 
         news_data_map=news_data_map, 
         headlines_map=headlines_map, 
         final_json_str=final_json_str, 
         all_companies=all_unique_companies,
-        SECOND_TITLE=SECONDARY_TITLE
+        SECONDARY_TITLE=SECONDARY_TITLE
     )
     
     with open("index.html", "w", encoding="utf-8") as f:
