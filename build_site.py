@@ -7,7 +7,8 @@ import os
 # ==========================================
 # 1. 基础配置与排序权重定义
 # ==========================================
-DATA_FILE = "data.csv"  # 切换为本地文件读取
+# Google Sheets 导出 CSV 的链接 (已根据你提供的文档 ID 转换)
+SHEET_URL = "https://docs.google.com/spreadsheets/d/1CgheqoqcKn-klAJCS8fWRdyP1ybBlG8ReqPLsqkFpl8/export?format=csv&gid=0"
 MY_DOMAIN = "www.aipulse.run"
 
 # 一级板块：核心大厂
@@ -34,19 +35,18 @@ def main():
     # ==========================================
     # 2. 数据读取与预处理
     # ==========================================
-    if not os.path.exists(DATA_FILE):
-        print(f"❌ 错误：找不到文件 {DATA_FILE}。请确保该文件已上传至仓库。")
-        sys.exit(1)
-
+    print("正在从 Google Sheets 获取最新数据...")
     try:
-        # 尝试 UTF-8 编码读取（GitHub 默认）
-        df = pd.read_csv(DATA_FILE, encoding='utf-8')
-    except UnicodeDecodeError:
-        # 如果失败则尝试 GBK 编码（Excel 本地保存常见编码）
-        df = pd.read_csv(DATA_FILE, encoding='gbk')
+        # 直接从云端链接读取
+        df = pd.read_csv(SHEET_URL)
     except Exception as e:
-        print(f"❌ 数据读取失败: {e}")
-        sys.exit(1)
+        print(f"❌ 无法从 Google Sheets 获取数据: {e}")
+        # 如果云端失败，尝试读取本地备份（可选）
+        if os.path.exists("data.csv"):
+            print("正在尝试读取本地备份文件 data.csv...")
+            df = pd.read_csv("data.csv")
+        else:
+            sys.exit(1)
 
     # 清洗列名和空值
     df.columns = [c.strip() for c in df.columns]
@@ -127,7 +127,7 @@ def main():
     final_json_str = json.dumps(df.to_dict('records'), ensure_ascii=False)
 
     # ==========================================
-    # 4. HTML 模板 (UI 已优化)
+    # 4. HTML 模板
     # ==========================================
     template_str = """
     <!DOCTYPE html>
