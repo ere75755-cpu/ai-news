@@ -16,7 +16,7 @@ CORE_COMPANIES = ['OpenAI', 'Google', 'Anthropic', 'Meta', '字节跳动', '阿�
 
 # 二级板块：重点关注模型
 SECONDARY_COMPANIES = ['Kimi', 'MiniMax', '智谱', 'xAI', '可灵', 'DeepSeek']
-SECONDARY_TITLE = "重点关注模型"
+SECONDARY_TITLE = "其余重点关注公司"
 
 # 话题标准排序
 TOPIC_ORDER = ['技术迭代', '产品动态', '商业动态', '春节活动', '数据洞察']
@@ -217,7 +217,7 @@ def main():
                     <div class="news-item" onclick="this.classList.toggle('open')">
                         <div class="tag-group">
                             <span class="tag tag-important">{{it['话题']}}</span>
-                            {% if co == SECONDARY_TITLE or co == '其余行业新闻' %}
+                            {% if co == SECONDARY_TITLE or co == '行业新闻' %}
                             <span class="tag tag-domestic">{{it['公司']}}</span>
                             {% endif %}
                         </div>
