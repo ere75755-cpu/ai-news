@@ -122,7 +122,7 @@ def main():
             
             other_df['other_rank_score'] = other_df.apply(get_other_rank, axis=1)
             other_df = other_df.sort_values(by='other_rank_score')
-            news_data_map[date]['其余行业新闻'] = other_df.to_dict('records')
+            news_data_map[date]['行业新闻'] = other_df.to_dict('records')
 
     final_json_str = json.dumps(df.to_dict('records'), ensure_ascii=False)
 
