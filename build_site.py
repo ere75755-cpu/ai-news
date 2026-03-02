@@ -3,6 +3,7 @@ from jinja2 import Template
 import json
 import sys
 import os
+import datetime # 导入 datetime 模块
 
 # ==========================================
 # 1. 基础配置与排序权重定义
@@ -24,6 +25,26 @@ OTHER_PRIORITY = [
     '特斯拉', '波士顿动力', '宇树', '智元', '银河', '星海图', 'Fiture', 'Figure', 
     'Sanctuary AI', '1X Technologies', 'Agility Robotics'
 ]
+
+# --- 新增日期解析函数 ---
+def parse_date_for_sort(date_str):
+    """
+    解析日期字符串，用于排序。
+    如果日期是 'yyyy/mm/dd至yyyy/mm/dd' 格式，则使用结束日期进行排序。
+    否则，使用单一日期。
+    """
+    if '至' in date_str:
+        # 对于日期范围，我们使用范围的结束日期进行排序，确保最新范围排在前面
+        date_part = date_str.split('至')[1].strip()
+    else:
+        date_part = date_str.strip()
+    
+    try:
+        return datetime.datetime.strptime(date_part, '%Y/%m/%d')
+    except ValueError:
+        # 如果日期格式不符合预期，返回一个极小值，确保它排在最后
+        print(f"警告: 无法解析日期字符串 '{date_str}'。将其排在最后。")
+        return datetime.datetime.min
 
 def main():
     # ==========================================
@@ -49,25 +70,16 @@ def main():
     # 提取所有不重复公司（供检索使用）
     all_unique_companies = sorted(df['公司'].unique().tolist(), key=lambda x: x.encode('gbk') if isinstance(x, str) else x)
 
-    # ==========================================
-    # 3. 核心分发逻辑
-    # ==========================================
-    def get_company_rank(c_val):
-        if c_val in CORE_COMPANIES: return CORE_COMPANIES.index(c_val)
-        if c_val in SECONDARY_COMPANIES: return len(CORE_COMPANIES) + SECONDARY_COMPANIES.index(c_val)
-        return 999
-
-    def get_topic_rank(t_val):
-        return TOPIC_ORDER.index(t_val) if t_val in TOPIC_ORDER else 99
-
-    df_sorted = df.copy()
-    all_dates = df_sorted['日期'].unique().tolist()
+    # --- 修改这里：获取所有唯一日期并按最新日期降序排列 ---
+    all_dates = df['日期'].unique().tolist()
+    all_dates.sort(key=parse_date_for_sort, reverse=True) # 使用自定义函数进行排序，最新日期在前
+    # ---------------------------------------------------
 
     news_data_map = {}
     headlines_map = {}
 
-    for date in all_dates:
-        day_df = df_sorted[df_sorted['日期'] == date].copy()
+    for date in all_dates: # 这里的循环将按照排序后的日期顺序进行
+        day_df = df[df['日期'] == date].copy() # 使用原始 df，因为 df_sorted 没有被再次修改
         
         # --- A. 今日头条板块排序 ---
         # 逻辑：1. 数字从小到大排 (1 > 2)； 2. 数字相同时按公司顺序排； 3. 公司相同时按话题排
@@ -126,7 +138,7 @@ def main():
     final_json_str = json.dumps(df.to_dict('records'), ensure_ascii=False)
 
     # ==========================================
-    # 4. HTML 模板
+    # 4. HTML 模板 (保持不变)
     # ==========================================
     template_str = """
     <!DOCTYPE html>
@@ -280,6 +292,7 @@ def main():
             }
         }
 
+        // --- 保持 window.onload 不变，因为它会默认选择日期选择框的第一个选项，而现在第一个选项已经是最新日期了 ---
         window.onload = () => { const select = document.getElementById('dateSelect'); if(select) changeDate(select.value); };
         function doSearch() {
             const d = document.getElementById('f-date').value, c = document.getElementById('f-co').value;
@@ -300,7 +313,7 @@ def main():
 
     # 最终渲染输出
     html = Template(template_str).render(
-        dates=all_dates, 
+        dates=all_dates, # 传递已经排序的日期列表
         news_data_map=news_data_map, 
         headlines_map=headlines_map, 
         final_json_str=final_json_str, 
