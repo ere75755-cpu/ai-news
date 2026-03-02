@@ -7,7 +7,6 @@ import os
 # ==========================================
 # 1. 基础配置与排序权重定义
 # ==========================================
-# Google Sheets 导出 CSV 的链接 (已根据你提供的文档 ID 转换)
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1CgheqoqcKn-klAJCS8fWRdyP1ybBlG8ReqPLsqkFpl8/export?format=csv&gid=0"
 MY_DOMAIN = "www.aipulse.run"
 
@@ -18,8 +17,11 @@ CORE_COMPANIES = ['OpenAI', 'Google', 'Anthropic', 'Meta', '字节跳动', '阿�
 SECONDARY_COMPANIES = ['Kimi', 'MiniMax', '智谱', 'xAI', '可灵', 'DeepSeek']
 SECONDARY_TITLE = "其余重点关注公司"
 
-# 话题标准排序
+# 话题标准排序（用于普通板块）
 TOPIC_ORDER = ['技术迭代', '产品动态', '商业动态', '春节活动', '数据洞察']
+
+# 今日头条专用话题排序：数据洞察 > 技术迭代 > 产品动态 > 春节活动
+HEADLINE_TOPIC_ORDER = ['数据洞察', '技术迭代', '产品动态', '春节活动', '商业动态']
 
 # 其余行业新闻排序权重（C端 > 算力 > 硬件）
 OTHER_PRIORITY = [
@@ -37,28 +39,23 @@ def main():
     # ==========================================
     print("正在从 Google Sheets 获取最新数据...")
     try:
-        # 直接从云端链接读取
         df = pd.read_csv(SHEET_URL)
     except Exception as e:
         print(f"❌ 无法从 Google Sheets 获取数据: {e}")
-        # 如果云端失败，尝试读取本地备份（可选）
         if os.path.exists("data.csv"):
             print("正在尝试读取本地备份文件 data.csv...")
             df = pd.read_csv("data.csv")
         else:
             sys.exit(1)
 
-    # 清洗列名和空值
     df.columns = [c.strip() for c in df.columns]
     
-    # 统一命名映射
     name_map = {
         '字节': '字节跳动', '阿里': '阿里巴巴', 'Baidu': '百度', 
         'minimax': 'MiniMax', '智谱AI': '智谱', 'OpenAI ': 'OpenAI'
     }
     df['公司'] = df['公司'].replace(name_map)
     
-    # 处理“是否头条”列
     if '是否头条' in df.columns:
         df['是否头条'] = pd.to_numeric(df['是否头条'], errors='coerce').fillna(0).astype(int)
     else:
@@ -66,7 +63,6 @@ def main():
         
     df = df.fillna("")
 
-    # 提取所有不重复公司（供检索使用）
     all_unique_companies = sorted(df['公司'].unique().tolist(), 
                                   key=lambda x: x.encode('gbk') if isinstance(x, str) else x)
 
@@ -74,17 +70,19 @@ def main():
     # 3. 核心分发逻辑
     # ==========================================
     
+    # 通用排序函数
+    def get_company_rank(c_val):
+        if c_val in CORE_COMPANIES: return CORE_COMPANIES.index(c_val)
+        if c_val in SECONDARY_COMPANIES: return len(CORE_COMPANIES) + SECONDARY_COMPANIES.index(c_val)
+        return 999
+
     def get_sort_score(row):
-        c_val = row['公司']
-        if c_val in CORE_COMPANIES: c_idx = CORE_COMPANIES.index(c_val)
-        elif c_val in SECONDARY_COMPANIES: c_idx = len(CORE_COMPANIES)
-        else: c_idx = len(CORE_COMPANIES) + 1
+        c_idx = get_company_rank(row['公司'])
         t_val = row['话题']
         t_idx = TOPIC_ORDER.index(t_val) if t_val in TOPIC_ORDER else 99
         return (c_idx, t_idx)
 
     df['sort_score'] = df.apply(get_sort_score, axis=1)
-    # 按日期倒序，分值正序（确保核心公司在前）
     df_sorted = df.sort_values(by=['日期', 'sort_score'], ascending=[False, True])
     all_dates = df_sorted['日期'].unique().tolist()
 
@@ -92,8 +90,22 @@ def main():
     headlines_map = {}
 
     for date in all_dates:
-        day_df = df_sorted[df_sorted['日期'] == date]
-        headlines_map[date] = day_df[day_df['是否头条'] == 1].to_dict('records')
+        day_df = df_sorted[df_sorted['日期'] == date].copy()
+        
+        # --- 修改：今日头条排序逻辑 ---
+        headline_df = day_df[day_df['是否头条'] == 1].copy()
+        if not headline_df.empty:
+            # 计算头条权重：公司顺序为主，话题顺序为辅
+            headline_df['h_comp_rank'] = headline_df['公司'].apply(get_company_rank)
+            headline_df['h_topic_rank'] = headline_df['话题'].apply(
+                lambda x: HEADLINE_TOPIC_ORDER.index(x) if x in HEADLINE_TOPIC_ORDER else 99
+            )
+            # 执行排序
+            headline_df = headline_df.sort_values(by=['h_comp_rank', 'h_topic_rank'])
+            headlines_map[date] = headline_df.to_dict('records')
+        else:
+            headlines_map[date] = []
+
         news_data_map[date] = {}
         
         # 1. 核心大厂
@@ -110,7 +122,7 @@ def main():
             sec_df = sec_df.sort_values(by=['s_rank', 't_rank'])
             news_data_map[date][SECONDARY_TITLE] = sec_df.to_dict('records')
         
-        # 3. 其余行业新闻（含数据洞察置顶逻辑）
+        # 3. 其余行业新闻
         other_df = day_df[~day_df['公司'].isin(CORE_COMPANIES + SECONDARY_COMPANIES)].copy()
         if not other_df.empty:
             def get_other_rank(row):
