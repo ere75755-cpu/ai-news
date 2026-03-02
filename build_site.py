@@ -13,8 +13,8 @@ MY_DOMAIN = "www.aipulse.run"
 CORE_COMPANIES = ['OpenAI', 'Google', 'Anthropic', 'Meta', '字节跳动', '阿里巴巴', '腾讯', '百度']
 SECONDARY_COMPANIES = ['Kimi', 'MiniMax', '智谱', 'xAI', '可灵', 'DeepSeek']
 SECONDARY_TITLE = "其余重点关注公司"
+# 话题优先级：数据洞察 > 技术迭代 > 产品动态 > 商业动态 > 春节活动
 TOPIC_ORDER = ['数据洞察', '技术迭代', '产品动态', '商业动态', '春节活动']
-HEADLINE_TOPIC_ORDER = ['数据洞察', '技术迭代', '产品动态', '春节活动', '商业动态']
 
 OTHER_PRIORITY = [
     'Perplexity', 'Character.ai', 'Midjourney', 'Pika', 'Runway', 
@@ -42,14 +42,11 @@ def main():
     name_map = {'字节': '字节跳动', '阿里': '阿里巴巴', 'Baidu': '百度', 'minimax': 'MiniMax', '智谱AI': '智谱', 'OpenAI ': 'OpenAI'}
     df['公司'] = df['公司'].replace(name_map)
     
-    if '是否头条' in df.columns:
-        df['是否头条'] = pd.to_numeric(df['是否头条'], errors='coerce').fillna(0).astype(int)
-    else:
-        df['是否头条'] = 0
+    # 转换“是否头条”为数字，处理空格和空值
+    df['是否头条'] = pd.to_numeric(df['是否头条'], errors='coerce').fillna(0).astype(int)
     df = df.fillna("")
-
-    # --- 修复点：重新定义并生成 all_unique_companies 变量 ---
-    # 提取所有不重复公司（供历史检索下拉框使用）
+    
+    # 提取所有不重复公司（供检索使用）
     all_unique_companies = sorted(df['公司'].unique().tolist(), key=lambda x: x.encode('gbk') if isinstance(x, str) else x)
 
     # ==========================================
@@ -60,8 +57,10 @@ def main():
         if c_val in SECONDARY_COMPANIES: return len(CORE_COMPANIES) + SECONDARY_COMPANIES.index(c_val)
         return 999
 
-    df['base_score'] = df.apply(lambda row: get_company_rank(row['公司']), axis=1)
-    df_sorted = df.sort_values(by=['日期', 'base_score'], ascending=[False, True])
+    def get_topic_rank(t_val):
+        return TOPIC_ORDER.index(t_val) if t_val in TOPIC_ORDER else 99
+
+    df_sorted = df.copy()
     all_dates = df_sorted['日期'].unique().tolist()
 
     news_data_map = {}
@@ -70,38 +69,59 @@ def main():
     for date in all_dates:
         day_df = df_sorted[df_sorted['日期'] == date].copy()
         
-        # 今日头条处理
-        headline_df = day_df[day_df['是否头条'] == 1].copy()
+        # --- A. 今日头条板块排序 ---
+        # 逻辑：1. 数字从小到大排 (1 > 2)； 2. 数字相同时按公司顺序排； 3. 公司相同时按话题排
+        headline_df = day_df[day_df['是否头条'] > 0].copy()
         if not headline_df.empty:
-            headline_df['h_comp_rank'] = headline_df['公司'].apply(get_company_rank)
-            headline_df['h_topic_rank'] = headline_df['话题'].apply(lambda x: HEADLINE_TOPIC_ORDER.index(x) if x in HEADLINE_TOPIC_ORDER else 99)
-            headlines_map[date] = headline_df.sort_values(by=['h_comp_rank', 'h_topic_rank']).to_dict('records')
+            headline_df['c_rank'] = headline_df['公司'].apply(get_company_rank)
+            headline_df['t_rank'] = headline_df['话题'].apply(get_topic_rank)
+            headlines_map[date] = headline_df.sort_values(by=['是否头条', 'c_rank', 't_rank'], ascending=[True, True, True]).to_dict('records')
         else:
             headlines_map[date] = []
 
         news_data_map[date] = {}
         
+        # --- B. 分公司/板块内部排序辅助函数 ---
         def sort_section_data(data_df, is_other=False):
-            data_df['is_hl_sort'] = data_df['是否头条'].apply(lambda x: 0 if x == 1 else 1)
+            # 排序权重：
+            # 1. 头条(数字>0)永远在非头条(数字=0)之前
+            # 2. 如果都是头条，按数字 1,2,3 升序
+            # 3. 如果都不是头条，按话题优先级排
+            # 4. 最后按公司预设权重排
+            
+            def calc_internal_score(row):
+                val = row['是否头条']
+                t_idx = get_topic_rank(row['话题'])
+                if val > 0:
+                    # 头条区间：0-100分。数字越小分数越低，越靠前
+                    return val 
+                else:
+                    # 非头条区间：1000分起。按话题权重累加
+                    return 1000 + t_idx
+
+            data_df['internal_score'] = data_df.apply(calc_internal_score, axis=1)
+            
             if is_other:
                 data_df['co_rank'] = data_df['公司'].apply(lambda x: OTHER_PRIORITY.index(x) if x in OTHER_PRIORITY else 999)
+                return data_df.sort_values(by=['internal_score', 'co_rank']).to_dict('records')
             else:
-                data_df['co_rank'] = data_df['公司'].apply(get_company_rank)
-            data_df['t_rank'] = data_df['话题'].apply(lambda x: TOPIC_ORDER.index(x) if x in TOPIC_ORDER else 99)
-            return data_df.sort_values(by=['is_hl_sort', 't_rank', 'co_rank']).to_dict('records')
+                return data_df.sort_values(by='internal_score').to_dict('records')
 
-        # 按公司分块
+        # 1. 核心大厂
         for company in CORE_COMPANIES:
             comp_df = day_df[day_df['公司'] == company].copy()
-            if not comp_df.empty: news_data_map[date][company] = sort_section_data(comp_df)
+            if not comp_df.empty:
+                news_data_map[date][company] = sort_section_data(comp_df)
         
-        # 二级板块
+        # 2. 重点关注模型
         sec_df = day_df[day_df['公司'].isin(SECONDARY_COMPANIES)].copy()
-        if not sec_df.empty: news_data_map[date][SECONDARY_TITLE] = sort_section_data(sec_df)
+        if not sec_df.empty:
+            news_data_map[date][SECONDARY_TITLE] = sort_section_data(sec_df)
         
-        # 其余行业板块
+        # 3. 其余行业新闻
         other_df = day_df[~day_df['公司'].isin(CORE_COMPANIES + SECONDARY_COMPANIES)].copy()
-        if not other_df.empty: news_data_map[date]['行业新闻'] = sort_section_data(other_df, is_other=True)
+        if not other_df.empty:
+            news_data_map[date]['行业新闻'] = sort_section_data(other_df, is_other=True)
 
     final_json_str = json.dumps(df.to_dict('records'), ensure_ascii=False)
 
@@ -145,8 +165,8 @@ def main():
             .title-row { font-size: 14px; font-weight: 600; color: #334155; display: flex; justify-content: space-between; align-items: center; }
             .title-row::after { content: '+'; font-size: 14px; color: #cbd5e1; }
             .news-item.open .title-row::after { content: '−'; color: var(--primary); }
-            .news-item.open .content-box { display: block; }
             .content-box { display: none; padding: 8px 0; font-size: 12px; color: #475569; line-height: 1.7; text-align: justify; }
+            .news-item.open .content-box { display: block; }
             .footer { font-size: 10px; color: #94a3b8; display: flex; justify-content: space-between; margin-top: 8px; }
             .link-btn { color: var(--primary); text-decoration: none; font-weight: 700; }
         </style>
@@ -268,7 +288,7 @@ def main():
             resDiv.innerHTML = filtered.length ? '' : '<p style="text-align:center; padding:30px; font-size:11px; color:#999;">无匹配情报</p>';
             filtered.forEach(it => {
                 const item = document.createElement('div'); item.className = 'news-item'; item.onclick = () => item.classList.toggle('open');
-                const showD = it['日期'].includes('至') ? it['日期'].split('至')[1].strip() : it['日期'];
+                const showD = it['日期'].includes('至') ? it['日期'].split('至')[1].trim() : it['日期'];
                 item.innerHTML = `<div class="tag-group"><span class="tag tag-important">${it['话题']}</span><span class="tag">${showD}</span><span class="tag">公司/模型：${it['公司']}</span></div><span class="title-row">${it['标题']}</span><div class="content-box">${it['核心内容']}<div class="footer"><span>来源: ${it['来源']}</span><a href="${it['链接']}" class="link-btn" target="_blank" onclick="event.stopPropagation();">阅读原文</a></div></div>`;
                 resDiv.appendChild(item);
             });
@@ -278,13 +298,13 @@ def main():
     </html>
     """
 
-    # 渲染并输出
+    # 最终渲染输出
     html = Template(template_str).render(
         dates=all_dates, 
         news_data_map=news_data_map, 
         headlines_map=headlines_map, 
         final_json_str=final_json_str, 
-        all_companies=all_unique_companies, # 确保传递了此变量
+        all_companies=all_unique_companies,
         SECONDARY_TITLE=SECONDARY_TITLE
     )
     
