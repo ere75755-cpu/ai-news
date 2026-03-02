@@ -38,7 +38,7 @@ def parse_date_for_sort(date_str):
         date_part = date_str.split('至')[1].strip()
     else:
         date_part = date_str.strip()
-    
+        
     try:
         return datetime.datetime.strptime(date_part, '%Y/%m/%d')
     except ValueError:
@@ -69,6 +69,8 @@ def main():
     
     # 提取所有不重复公司（供检索使用）
     all_unique_companies = sorted(df['公司'].unique().tolist(), key=lambda x: x.encode('gbk') if isinstance(x, str) else x)
+    # --- 新增：提取所有不重复话题（供检索使用） ---
+    all_unique_topics = sorted(df['话题'].unique().tolist())
 
     # --- 修改这里：获取所有唯一日期并按最新日期降序排列 ---
     all_dates = df['日期'].unique().tolist()
@@ -131,14 +133,14 @@ def main():
             news_data_map[date][SECONDARY_TITLE] = sort_section_data(sec_df)
         
         # 3. 其余行业新闻
-        other_df = day_df[~day_df['公司'].isin(CORE_COMPANIES + SECONDARY_COMPANIES)].copy()
+        other_df = day_df[~df['公司'].isin(CORE_COMPANIES + SECONDARY_COMPANIES)].copy()
         if not other_df.empty:
             news_data_map[date]['行业新闻'] = sort_section_data(other_df, is_other=True)
 
     final_json_str = json.dumps(df.to_dict('records'), ensure_ascii=False)
 
     # ==========================================
-    # 4. HTML 模板 (保持不变)
+    # 4. HTML 模板
     # ==========================================
     template_str = """
     <!DOCTYPE html>
@@ -244,6 +246,8 @@ def main():
             <div style="padding:10px 0; display:flex; gap:6px; margin-bottom:15px; position: sticky; top: 0; z-index: 101; background: #fff; border-bottom: 1px solid #eee;">
                 <select id="f-date" style="flex:1; font-size:11px;"><option value="all">全时间段</option>{% for d in dates %}<option value="{{d}}">{% if '至' in d %}{{ d.split('至')[1].strip() }}{% else %}{{ d }}{% endif %}</option>{% endfor %}</select>
                 <select id="f-co" style="flex:1; font-size:11px;"><option value="all">所有公司/模型</option>{% for c in all_companies %}<option value="{{c}}">{{c}}</option>{% endfor %}</select>
+                <!-- NEW: 话题筛选器 -->
+                <select id="f-topic" style="flex:1; font-size:11px;"><option value="all">所有话题</option>{% for t in all_topics %}<option value="{{t}}">{{t}}</option>{% endfor %}</select>
                 <button onclick="doSearch()" style="background:var(--primary); color:white; border:none; padding:4px 12px; font-size:11px; border-radius:2px; cursor:pointer;">检索</button>
             </div>
             <div id="results"></div>
@@ -257,7 +261,7 @@ def main():
             document.getElementById('panel-' + id).classList.add('active');
             document.getElementById('btn-' + id).classList.add('active');
             window.scrollTo(0,0);
-            if(id === 'filter') doSearch();
+            if(id === 'filter') doSearch(); // 切换到历史检索时自动触发一次检索
         }
         function changeDate(d) {
             document.querySelectorAll('.date-container').forEach(g => g.style.display = 'none');
@@ -292,11 +296,21 @@ def main():
             }
         }
 
-        // --- 保持 window.onload 不变，因为它会默认选择日期选择框的第一个选项，而现在第一个选项已经是最新日期了 ---
-        window.onload = () => { const select = document.getElementById('dateSelect'); if(select) changeDate(select.value); };
+        window.onload = () => { 
+            const select = document.getElementById('dateSelect'); 
+            if(select) changeDate(select.value); 
+        };
+
         function doSearch() {
-            const d = document.getElementById('f-date').value, c = document.getElementById('f-co').value;
-            const filtered = rawData.filter(it => (d === 'all' || it['日期'] == d) && (c === 'all' || it['公司'] == c));
+            const d = document.getElementById('f-date').value;
+            const c = document.getElementById('f-co').value;
+            const t = document.getElementById('f-topic').value; // NEW: 获取话题类型
+
+            const filtered = rawData.filter(it => 
+                (d === 'all' || it['日期'] == d) && 
+                (c === 'all' || it['公司'] == c) &&
+                (t === 'all' || it['话题'] == t) // NEW: 添加话题筛选条件
+            );
             const resDiv = document.getElementById('results');
             resDiv.innerHTML = filtered.length ? '' : '<p style="text-align:center; padding:30px; font-size:11px; color:#999;">无匹配情报</p>';
             filtered.forEach(it => {
@@ -318,6 +332,7 @@ def main():
         headlines_map=headlines_map, 
         final_json_str=final_json_str, 
         all_companies=all_unique_companies,
+        all_topics=all_unique_topics, # NEW: 传递所有话题
         SECONDARY_TITLE=SECONDARY_TITLE
     )
     
