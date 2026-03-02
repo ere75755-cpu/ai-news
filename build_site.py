@@ -193,7 +193,7 @@ def main():
         </div>
         <div id="panel-daily" class="tab-content active">
             <div class="control-bar">
-                <div id="current-time-label" class="time-label">监测：加载中...</div>
+                <div id="current-time-label" class="time-label">监测周期：加载中...</div>
                 <div style="display: flex; align-items: center;">
                     <span style="font-size:10px; color:#94a3b8;">日期：</span>
                     <select id="dateSelect" class="date-picker" onchange="changeDate(this.value)">
@@ -275,7 +275,7 @@ def main():
         function updateTimeLabel(d) {
             const current = new Date(d); const prev = new Date(current); prev.setDate(current.getDate() - 1);
             const label = prev.getFullYear() + '/' + (prev.getMonth()+1) + '/' + prev.getDate() + ' 17:00 至 ' + d + ' 17:00';
-            document.getElementById('current-time-label').innerText = "监测：" + label;
+            document.getElementById('current-time-label').innerText = "监测周期：" + label;
         }
         window.onload = () => { const select = document.getElementById('dateSelect'); if(select) changeDate(select.value); };
         function doSearch() {
