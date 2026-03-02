@@ -26,7 +26,7 @@ OTHER_PRIORITY = [
     'Sanctuary AI', '1X Technologies', 'Agility Robotics'
 ]
 
-# --- 新增日期解析函数 ---
+# --- 日期解析函数 ---
 def parse_date_for_sort(date_str):
     """
     解析日期字符串，用于排序。
@@ -38,13 +38,22 @@ def parse_date_for_sort(date_str):
         date_part = date_str.split('至')[1].strip()
     else:
         date_part = date_str.strip()
-        
+            
     try:
         return datetime.datetime.strptime(date_part, '%Y/%m/%d')
     except ValueError:
         # 如果日期格式不符合预期，返回一个极小值，确保它排在最后
         print(f"警告: 无法解析日期字符串 '{date_str}'。将其排在最后。")
         return datetime.datetime.min
+
+# --- 核心分发逻辑辅助函数 (已移至全局作用域) ---
+def get_company_rank(c_val):
+    if c_val in CORE_COMPANIES: return CORE_COMPANIES.index(c_val)
+    if c_val in SECONDARY_COMPANIES: return len(CORE_COMPANIES) + SECONDARY_COMPANIES.index(c_val)
+    return 999
+
+def get_topic_rank(t_val):
+    return TOPIC_ORDER.index(t_val) if t_val in TOPIC_ORDER else 99
 
 def main():
     # ==========================================
@@ -62,50 +71,50 @@ def main():
     df.columns = [c.strip() for c in df.columns]
     name_map = {'字节': '字节跳动', '阿里': '阿里巴巴', 'Baidu': '百度', 'minimax': 'MiniMax', '智谱AI': '智谱', 'OpenAI ': 'OpenAI'}
     df['公司'] = df['公司'].replace(name_map)
-    
+        
     # 转换“是否头条”为数字，处理空格和空值
     df['是否头条'] = pd.to_numeric(df['是否头条'], errors='coerce').fillna(0).astype(int)
     df = df.fillna("")
-    
+        
     # 提取所有不重复公司（供检索使用）
     all_unique_companies = sorted(df['公司'].unique().tolist(), key=lambda x: x.encode('gbk') if isinstance(x, str) else x)
     # --- 新增：提取所有不重复话题（供检索使用） ---
     all_unique_topics = sorted(df['话题'].unique().tolist())
 
-    # --- 修改这里：获取所有唯一日期并按最新日期降序排列 ---
+    # --- 获取所有唯一日期并按最新日期降序排列 ---
     all_dates = df['日期'].unique().tolist()
     all_dates.sort(key=parse_date_for_sort, reverse=True) # 使用自定义函数进行排序，最新日期在前
-    # ---------------------------------------------------
 
     news_data_map = {}
     headlines_map = {}
 
     for date in all_dates: # 这里的循环将按照排序后的日期顺序进行
-        day_df = df[df['日期'] == date].copy() # 使用原始 df，因为 df_sorted 没有被再次修改
-        
+        day_df = df[df['日期'] == date].copy() # 使用原始 df
+            
         # --- A. 今日头条板块排序 ---
         # 逻辑：1. 数字从小到大排 (1 > 2)； 2. 数字相同时按公司顺序排； 3. 公司相同时按话题排
         headline_df = day_df[day_df['是否头条'] > 0].copy()
         if not headline_df.empty:
-            headline_df['c_rank'] = headline_df['公司'].apply(get_company_rank)
-            headline_df['t_rank'] = headline_df['话题'].apply(get_topic_rank)
+            headline_df['c_rank'] = headline_df['公司'].apply(get_company_rank) # 现在 get_company_rank 在全局作用域已定义
+            headline_df['t_rank'] = headline_df['话题'].apply(get_topic_rank)   # 现在 get_topic_rank 在全局作用域已定义
             headlines_map[date] = headline_df.sort_values(by=['是否头条', 'c_rank', 't_rank'], ascending=[True, True, True]).to_dict('records')
         else:
             headlines_map[date] = []
 
         news_data_map[date] = {}
-        
+            
         # --- B. 分公司/板块内部排序辅助函数 ---
+        # 这个函数可以保持在 main 内部，因为它只在 main 内部被调用，并且在被调用前已定义
         def sort_section_data(data_df, is_other=False):
             # 排序权重：
             # 1. 头条(数字>0)永远在非头条(数字=0)之前
             # 2. 如果都是头条，按数字 1,2,3 升序
             # 3. 如果都不是头条，按话题优先级排
             # 4. 最后按公司预设权重排
-            
+                
             def calc_internal_score(row):
                 val = row['是否头条']
-                t_idx = get_topic_rank(row['话题'])
+                t_idx = get_topic_rank(row['话题']) # get_topic_rank 在全局作用域，可以访问
                 if val > 0:
                     # 头条区间：0-100分。数字越小分数越低，越靠前
                     return val 
@@ -114,7 +123,7 @@ def main():
                     return 1000 + t_idx
 
             data_df['internal_score'] = data_df.apply(calc_internal_score, axis=1)
-            
+                
             if is_other:
                 data_df['co_rank'] = data_df['公司'].apply(lambda x: OTHER_PRIORITY.index(x) if x in OTHER_PRIORITY else 999)
                 return data_df.sort_values(by=['internal_score', 'co_rank']).to_dict('records')
@@ -126,12 +135,12 @@ def main():
             comp_df = day_df[day_df['公司'] == company].copy()
             if not comp_df.empty:
                 news_data_map[date][company] = sort_section_data(comp_df)
-        
+            
         # 2. 重点关注模型
         sec_df = day_df[day_df['公司'].isin(SECONDARY_COMPANIES)].copy()
         if not sec_df.empty:
             news_data_map[date][SECONDARY_TITLE] = sort_section_data(sec_df)
-        
+            
         # 3. 其余行业新闻
         other_df = day_df[~df['公司'].isin(CORE_COMPANIES + SECONDARY_COMPANIES)].copy()
         if not other_df.empty:
@@ -246,8 +255,7 @@ def main():
             <div style="padding:10px 0; display:flex; gap:6px; margin-bottom:15px; position: sticky; top: 0; z-index: 101; background: #fff; border-bottom: 1px solid #eee;">
                 <select id="f-date" style="flex:1; font-size:11px;"><option value="all">全时间段</option>{% for d in dates %}<option value="{{d}}">{% if '至' in d %}{{ d.split('至')[1].strip() }}{% else %}{{ d }}{% endif %}</option>{% endfor %}</select>
                 <select id="f-co" style="flex:1; font-size:11px;"><option value="all">所有公司/模型</option>{% for c in all_companies %}<option value="{{c}}">{{c}}</option>{% endfor %}</select>
-                <!-- NEW: 话题筛选器 -->
-                <select id="f-topic" style="flex:1; font-size:11px;"><option value="all">所有话题</option>{% for t in all_topics %}<option value="{{t}}">{{t}}</option>{% endfor %}</select>
+                <select id="f-topic" style="flex:1; font-size:11px;"><option value="all">所有话题类型</option>{% for t in all_topics %}<option value="{{t}}">{{t}}</option>{% endfor %}</select> {# NEW: 话题筛选器 #}
                 <button onclick="doSearch()" style="background:var(--primary); color:white; border:none; padding:4px 12px; font-size:11px; border-radius:2px; cursor:pointer;">检索</button>
             </div>
             <div id="results"></div>
@@ -261,7 +269,7 @@ def main():
             document.getElementById('panel-' + id).classList.add('active');
             document.getElementById('btn-' + id).classList.add('active');
             window.scrollTo(0,0);
-            if(id === 'filter') doSearch(); // 切换到历史检索时自动触发一次检索
+            if(id === 'filter') doSearch();
         }
         function changeDate(d) {
             document.querySelectorAll('.date-container').forEach(g => g.style.display = 'none');
@@ -299,20 +307,25 @@ def main():
         window.onload = () => { 
             const select = document.getElementById('dateSelect'); 
             if(select) changeDate(select.value); 
+            // 确保 doSearch 在页面加载时为筛选面板初始化一次（如果它是默认激活的）
+            if (document.getElementById('panel-filter').classList.contains('active')) {
+                doSearch();
+            }
         };
 
         function doSearch() {
             const d = document.getElementById('f-date').value;
             const c = document.getElementById('f-co').value;
-            const t = document.getElementById('f-topic').value; // NEW: 获取话题类型
+            const t = document.getElementById('f-topic').value; // NEW: 获取话题筛选值
 
             const filtered = rawData.filter(it => 
                 (d === 'all' || it['日期'] == d) && 
                 (c === 'all' || it['公司'] == c) &&
                 (t === 'all' || it['话题'] == t) // NEW: 添加话题筛选条件
             );
+
             const resDiv = document.getElementById('results');
-            resDiv.innerHTML = filtered.length ? '' : '<p style="text-align:center; padding:30px; font-size:11px; color:#999;">无匹配情报</p>';
+            resDiv.innerHTML = filtered.length ? '' : '<p style="text-align:center; padding:30px; font-size:11px; color:#999;">无匹配新闻</p>';
             filtered.forEach(it => {
                 const item = document.createElement('div'); item.className = 'news-item'; item.onclick = () => item.classList.toggle('open');
                 const showD = it['日期'].includes('至') ? it['日期'].split('至')[1].trim() : it['日期'];
@@ -335,10 +348,10 @@ def main():
         all_topics=all_unique_topics, # NEW: 传递所有话题
         SECONDARY_TITLE=SECONDARY_TITLE
     )
-    
+        
     with open("index.html", "w", encoding="utf-8") as f:
         f.write(html)
-        
+            
     with open("CNAME", "w") as f:
         f.write(MY_DOMAIN)
 
