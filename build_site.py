@@ -18,12 +18,12 @@ SECONDARY_COMPANIES = ['Kimi', 'MiniMax', '智谱', 'xAI', '可灵', 'DeepSeek']
 SECONDARY_TITLE = "其余重点关注公司"
 
 # 话题标准排序（用于普通板块）
-TOPIC_ORDER = ['技术迭代', '产品动态', '商业动态', '春节活动', '数据洞察']
+TOPIC_ORDER = ['数据洞察', '技术迭代', '产品动态', '商业动态', '春节活动']
 
-# 今日头条专用话题排序：数据洞察 > 技术迭代 > 产品动态 > 春节活动
+# 今日头条专用话题排序
 HEADLINE_TOPIC_ORDER = ['数据洞察', '技术迭代', '产品动态', '春节活动', '商业动态']
 
-# 其余行业新闻排序权重（C端 > 算力 > 硬件）
+# 其余行业新闻排序权重
 OTHER_PRIORITY = [
     'Perplexity', 'Character.ai', 'Midjourney', 'Pika', 'Runway', 
     'Suno', 'Luma', 'Grok', 'Mistral', 'Cohere', 'Hugging Face', 'OpenClaw',
@@ -70,20 +70,18 @@ def main():
     # 3. 核心分发逻辑
     # ==========================================
     
-    # 通用排序函数
     def get_company_rank(c_val):
         if c_val in CORE_COMPANIES: return CORE_COMPANIES.index(c_val)
         if c_val in SECONDARY_COMPANIES: return len(CORE_COMPANIES) + SECONDARY_COMPANIES.index(c_val)
         return 999
 
-    def get_sort_score(row):
+    # 基础排序（日期和公司大类顺序）
+    def get_base_score(row):
         c_idx = get_company_rank(row['公司'])
-        t_val = row['话题']
-        t_idx = TOPIC_ORDER.index(t_val) if t_val in TOPIC_ORDER else 99
-        return (c_idx, t_idx)
+        return c_idx
 
-    df['sort_score'] = df.apply(get_sort_score, axis=1)
-    df_sorted = df.sort_values(by=['日期', 'sort_score'], ascending=[False, True])
+    df['base_score'] = df.apply(get_base_score, axis=1)
+    df_sorted = df.sort_values(by=['日期', 'base_score'], ascending=[False, True])
     all_dates = df_sorted['日期'].unique().tolist()
 
     news_data_map = {}
@@ -92,15 +90,13 @@ def main():
     for date in all_dates:
         day_df = df_sorted[df_sorted['日期'] == date].copy()
         
-        # --- 修改：今日头条排序逻辑 ---
+        # --- A. 今日头条板块排序 ---
         headline_df = day_df[day_df['是否头条'] == 1].copy()
         if not headline_df.empty:
-            # 计算头条权重：公司顺序为主，话题顺序为辅
             headline_df['h_comp_rank'] = headline_df['公司'].apply(get_company_rank)
             headline_df['h_topic_rank'] = headline_df['话题'].apply(
                 lambda x: HEADLINE_TOPIC_ORDER.index(x) if x in HEADLINE_TOPIC_ORDER else 99
             )
-            # 执行排序
             headline_df = headline_df.sort_values(by=['h_comp_rank', 'h_topic_rank'])
             headlines_map[date] = headline_df.to_dict('records')
         else:
@@ -108,33 +104,37 @@ def main():
 
         news_data_map[date] = {}
         
+        # --- B. 辅助函数：分公司/板块内部排序逻辑 ---
+        # 逻辑：头条置顶 > 话题优先级 > 公司内部默认顺序
+        def sort_section_data(data_df, is_other=False):
+            # 0表示是头条（排在前），1表示非头条
+            data_df['is_hl_sort'] = data_df['是否头条'].apply(lambda x: 0 if x == 1 else 1)
+            
+            if is_other:
+                data_df['co_rank'] = data_df['公司'].apply(lambda x: OTHER_PRIORITY.index(x) if x in OTHER_PRIORITY else 999)
+            else:
+                data_df['co_rank'] = data_df['公司'].apply(get_company_rank)
+
+            data_df['t_rank'] = data_df['话题'].apply(lambda x: TOPIC_ORDER.index(x) if x in TOPIC_ORDER else 99)
+            
+            # 执行排序：头条标识 -> 话题顺序 -> 公司顺序
+            return data_df.sort_values(by=['is_hl_sort', 't_rank', 'co_rank']).to_dict('records')
+
         # 1. 核心大厂
         for company in CORE_COMPANIES:
-            comp_df = day_df[day_df['公司'] == company]
+            comp_df = day_df[day_df['公司'] == company].copy()
             if not comp_df.empty:
-                news_data_map[date][company] = comp_df.to_dict('records')
+                news_data_map[date][company] = sort_section_data(comp_df)
         
         # 2. 重点关注模型
         sec_df = day_df[day_df['公司'].isin(SECONDARY_COMPANIES)].copy()
         if not sec_df.empty:
-            sec_df['s_rank'] = sec_df['公司'].apply(lambda x: SECONDARY_COMPANIES.index(x))
-            sec_df['t_rank'] = sec_df['话题'].apply(lambda x: TOPIC_ORDER.index(x) if x in TOPIC_ORDER else 99)
-            sec_df = sec_df.sort_values(by=['s_rank', 't_rank'])
-            news_data_map[date][SECONDARY_TITLE] = sec_df.to_dict('records')
+            news_data_map[date][SECONDARY_TITLE] = sort_section_data(sec_df)
         
         # 3. 其余行业新闻
         other_df = day_df[~day_df['公司'].isin(CORE_COMPANIES + SECONDARY_COMPANIES)].copy()
         if not other_df.empty:
-            def get_other_rank(row):
-                topic_priority = 0 if row['话题'] == '数据洞察' else 1
-                co_val = row['公司']
-                co_weight = OTHER_PRIORITY.index(co_val) if co_val in OTHER_PRIORITY else 999
-                t_idx = TOPIC_ORDER.index(row['话题']) if row['话题'] in TOPIC_ORDER else 99
-                return (topic_priority, co_weight, t_idx)
-            
-            other_df['other_rank_score'] = other_df.apply(get_other_rank, axis=1)
-            other_df = other_df.sort_values(by='other_rank_score')
-            news_data_map[date]['行业新闻'] = other_df.to_dict('records')
+            news_data_map[date]['行业新闻'] = sort_section_data(other_df, is_other=True)
 
     final_json_str = json.dumps(df.to_dict('records'), ensure_ascii=False)
 
