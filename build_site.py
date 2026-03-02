@@ -48,6 +48,10 @@ def main():
         df['是否头条'] = 0
     df = df.fillna("")
 
+    # --- 修复点：重新定义并生成 all_unique_companies 变量 ---
+    # 提取所有不重复公司（供历史检索下拉框使用）
+    all_unique_companies = sorted(df['公司'].unique().tolist(), key=lambda x: x.encode('gbk') if isinstance(x, str) else x)
+
     # ==========================================
     # 3. 核心分发逻辑
     # ==========================================
@@ -65,6 +69,8 @@ def main():
 
     for date in all_dates:
         day_df = df_sorted[df_sorted['日期'] == date].copy()
+        
+        # 今日头条处理
         headline_df = day_df[day_df['是否头条'] == 1].copy()
         if not headline_df.empty:
             headline_df['h_comp_rank'] = headline_df['公司'].apply(get_company_rank)
@@ -74,6 +80,7 @@ def main():
             headlines_map[date] = []
 
         news_data_map[date] = {}
+        
         def sort_section_data(data_df, is_other=False):
             data_df['is_hl_sort'] = data_df['是否头条'].apply(lambda x: 0 if x == 1 else 1)
             if is_other:
@@ -83,20 +90,23 @@ def main():
             data_df['t_rank'] = data_df['话题'].apply(lambda x: TOPIC_ORDER.index(x) if x in TOPIC_ORDER else 99)
             return data_df.sort_values(by=['is_hl_sort', 't_rank', 'co_rank']).to_dict('records')
 
+        # 按公司分块
         for company in CORE_COMPANIES:
             comp_df = day_df[day_df['公司'] == company].copy()
             if not comp_df.empty: news_data_map[date][company] = sort_section_data(comp_df)
         
+        # 二级板块
         sec_df = day_df[day_df['公司'].isin(SECONDARY_COMPANIES)].copy()
         if not sec_df.empty: news_data_map[date][SECONDARY_TITLE] = sort_section_data(sec_df)
         
+        # 其余行业板块
         other_df = day_df[~day_df['公司'].isin(CORE_COMPANIES + SECONDARY_COMPANIES)].copy()
         if not other_df.empty: news_data_map[date]['行业新闻'] = sort_section_data(other_df, is_other=True)
 
     final_json_str = json.dumps(df.to_dict('records'), ensure_ascii=False)
 
     # ==========================================
-    # 4. HTML 模板 (重点修改下拉框显示逻辑)
+    # 4. HTML 模板
     # ==========================================
     template_str = """
     <!DOCTYPE html>
@@ -135,8 +145,8 @@ def main():
             .title-row { font-size: 14px; font-weight: 600; color: #334155; display: flex; justify-content: space-between; align-items: center; }
             .title-row::after { content: '+'; font-size: 14px; color: #cbd5e1; }
             .news-item.open .title-row::after { content: '−'; color: var(--primary); }
-            .content-box { display: none; padding: 8px 0; font-size: 12px; color: #475569; line-height: 1.7; text-align: justify; }
             .news-item.open .content-box { display: block; }
+            .content-box { display: none; padding: 8px 0; font-size: 12px; color: #475569; line-height: 1.7; text-align: justify; }
             .footer { font-size: 10px; color: #94a3b8; display: flex; justify-content: space-between; margin-top: 8px; }
             .link-btn { color: var(--primary); text-decoration: none; font-weight: 700; }
         </style>
@@ -258,7 +268,7 @@ def main():
             resDiv.innerHTML = filtered.length ? '' : '<p style="text-align:center; padding:30px; font-size:11px; color:#999;">无匹配情报</p>';
             filtered.forEach(it => {
                 const item = document.createElement('div'); item.className = 'news-item'; item.onclick = () => item.classList.toggle('open');
-                const showD = it['日期'].includes('至') ? it['日期'].split('至')[1].trim() : it['日期'];
+                const showD = it['日期'].includes('至') ? it['日期'].split('至')[1].strip() : it['日期'];
                 item.innerHTML = `<div class="tag-group"><span class="tag tag-important">${it['话题']}</span><span class="tag">${showD}</span><span class="tag">公司/模型：${it['公司']}</span></div><span class="title-row">${it['标题']}</span><div class="content-box">${it['核心内容']}<div class="footer"><span>来源: ${it['来源']}</span><a href="${it['链接']}" class="link-btn" target="_blank" onclick="event.stopPropagation();">阅读原文</a></div></div>`;
                 resDiv.appendChild(item);
             });
@@ -268,9 +278,21 @@ def main():
     </html>
     """
 
-    html = Template(template_str).render(dates=all_dates, news_data_map=news_data_map, headlines_map=headlines_map, final_json_str=final_json_str, all_companies=all_unique_companies, SECONDARY_TITLE=SECONDARY_TITLE)
-    with open("index.html", "w", encoding="utf-8") as f: f.write(html)
-    with open("CNAME", "w") as f: f.write(MY_DOMAIN)
+    # 渲染并输出
+    html = Template(template_str).render(
+        dates=all_dates, 
+        news_data_map=news_data_map, 
+        headlines_map=headlines_map, 
+        final_json_str=final_json_str, 
+        all_companies=all_unique_companies, # 确保传递了此变量
+        SECONDARY_TITLE=SECONDARY_TITLE
+    )
+    
+    with open("index.html", "w", encoding="utf-8") as f:
+        f.write(html)
+        
+    with open("CNAME", "w") as f:
+        f.write(MY_DOMAIN)
 
 if __name__ == "__main__":
     main()
