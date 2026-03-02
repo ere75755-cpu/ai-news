@@ -75,10 +75,8 @@ def main():
         if c_val in SECONDARY_COMPANIES: return len(CORE_COMPANIES) + SECONDARY_COMPANIES.index(c_val)
         return 999
 
-    # 基础排序（日期和公司大类顺序）
     def get_base_score(row):
-        c_idx = get_company_rank(row['公司'])
-        return c_idx
+        return get_company_rank(row['公司'])
 
     df['base_score'] = df.apply(get_base_score, axis=1)
     df_sorted = df.sort_values(by=['日期', 'base_score'], ascending=[False, True])
@@ -90,7 +88,7 @@ def main():
     for date in all_dates:
         day_df = df_sorted[df_sorted['日期'] == date].copy()
         
-        # --- A. 今日头条板块排序 ---
+        # A. 今日头条板块排序
         headline_df = day_df[day_df['是否头条'] == 1].copy()
         if not headline_df.empty:
             headline_df['h_comp_rank'] = headline_df['公司'].apply(get_company_rank)
@@ -104,34 +102,24 @@ def main():
 
         news_data_map[date] = {}
         
-        # --- B. 辅助函数：分公司/板块内部排序逻辑 ---
-        # 逻辑：头条置顶 > 话题优先级 > 公司内部默认顺序
         def sort_section_data(data_df, is_other=False):
-            # 0表示是头条（排在前），1表示非头条
             data_df['is_hl_sort'] = data_df['是否头条'].apply(lambda x: 0 if x == 1 else 1)
-            
             if is_other:
                 data_df['co_rank'] = data_df['公司'].apply(lambda x: OTHER_PRIORITY.index(x) if x in OTHER_PRIORITY else 999)
             else:
                 data_df['co_rank'] = data_df['公司'].apply(get_company_rank)
-
             data_df['t_rank'] = data_df['话题'].apply(lambda x: TOPIC_ORDER.index(x) if x in TOPIC_ORDER else 99)
-            
-            # 执行排序：头条标识 -> 话题顺序 -> 公司顺序
             return data_df.sort_values(by=['is_hl_sort', 't_rank', 'co_rank']).to_dict('records')
 
-        # 1. 核心大厂
         for company in CORE_COMPANIES:
             comp_df = day_df[day_df['公司'] == company].copy()
             if not comp_df.empty:
                 news_data_map[date][company] = sort_section_data(comp_df)
         
-        # 2. 重点关注模型
         sec_df = day_df[day_df['公司'].isin(SECONDARY_COMPANIES)].copy()
         if not sec_df.empty:
             news_data_map[date][SECONDARY_TITLE] = sort_section_data(sec_df)
         
-        # 3. 其余行业新闻
         other_df = day_df[~day_df['公司'].isin(CORE_COMPANIES + SECONDARY_COMPANIES)].copy()
         if not other_df.empty:
             news_data_map[date]['行业新闻'] = sort_section_data(other_df, is_other=True)
@@ -272,11 +260,43 @@ def main():
             const target = document.getElementById('date-group-' + d);
             if(target) { target.style.display = 'block'; updateTimeLabel(d); }
         }
+        
         function updateTimeLabel(d) {
-            const current = new Date(d); const prev = new Date(current); prev.setDate(current.getDate() - 1);
-            const label = prev.getFullYear() + '/' + (prev.getMonth()+1) + '/' + prev.getDate() + ' 17:00 至 ' + d + ' 17:00';
-            document.getElementById('current-time-label').innerText = "监测周期：" + label;
+            let startLabel = "";
+            let endLabel = "";
+
+            if (d.includes("至")) {
+                const parts = d.split("至");
+                const startDateStr = parts[0].trim();
+                const endDateStr = parts[1].trim();
+                
+                const startObj = new Date(startDateStr);
+                const endObj = new Date(endDateStr);
+
+                if (!isNaN(startObj) && !isNaN(endObj)) {
+                    // 最早日期的前一天
+                    startObj.setDate(startObj.getDate() - 1);
+                    startLabel = startObj.getFullYear() + '/' + (startObj.getMonth() + 1) + '/' + startObj.getDate() + ' 17:00';
+                    // 最晚日期当天
+                    endLabel = endObj.getFullYear() + '/' + (endObj.getMonth() + 1) + '/' + endObj.getDate() + ' 17:00';
+                }
+            } else {
+                const current = new Date(d);
+                if (!isNaN(current)) {
+                    const prev = new Date(current);
+                    prev.setDate(current.getDate() - 1);
+                    startLabel = prev.getFullYear() + '/' + (prev.getMonth() + 1) + '/' + prev.getDate() + ' 17:00';
+                    endLabel = current.getFullYear() + '/' + (current.getMonth() + 1) + '/' + current.getDate() + ' 17:00';
+                }
+            }
+
+            if (startLabel && endLabel) {
+                document.getElementById('current-time-label').innerText = "监测周期：" + startLabel + " 至 " + endLabel;
+            } else {
+                document.getElementById('current-time-label').innerText = "监测周期：" + d;
+            }
         }
+
         window.onload = () => { const select = document.getElementById('dateSelect'); if(select) changeDate(select.value); };
         function doSearch() {
             const d = document.getElementById('f-date').value, c = document.getElementById('f-co').value;
