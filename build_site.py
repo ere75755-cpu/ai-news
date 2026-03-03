@@ -4,15 +4,11 @@ import json
 import sys
 import os
 import datetime
-import requests
-from bs4 import BeautifulSoup
-import re
 
 # ==========================================
 # 1. 基础配置与排序权重定义
 # ==========================================
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1CgheqoqcKn-klAJCS8fWRdyP1ybBlG8ReqPLsqkFpl8/export?format=csv&gid=0"
-DIGEST_URL = "https://ai-news-digest.com/" 
 MY_DOMAIN = "www.aipulse.run"
 
 CORE_COMPANIES = ['OpenAI', 'Google', 'Anthropic', 'Meta', '字节跳动', '阿里巴巴', '腾讯', '百度']
@@ -32,12 +28,9 @@ OTHER_PRIORITY = [
 
 # --- 辅助函数 ---
 def parse_date_for_sort(date_str):
-    if '至' in date_str:
-        date_part = date_str.split('至')[1].strip()
-    else:
-        date_part = date_str.strip()
+    d_part = date_str.split('至')[1].strip() if '至' in date_str else date_str.strip()
     try:
-        return datetime.datetime.strptime(date_part, '%Y/%m/%d')
+        return datetime.datetime.strptime(d_part, '%Y/%m/%d')
     except:
         return datetime.datetime.min
 
@@ -49,39 +42,10 @@ def get_company_rank(c_val):
 def get_topic_rank(t_val):
     return TOPIC_ORDER.index(t_val) if t_val in TOPIC_ORDER else 99
 
-# ==========================================
-# 2. 社媒快讯抓取逻辑
-# ==========================================
-def fetch_external_social():
-    print("🚀 正在抓取 AI News Digest 社媒快讯...")
-    social_items = []
-    try:
-        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'}
-        resp = requests.get(DIGEST_URL, headers=headers, timeout=15)
-        resp.encoding = 'utf-8'
-        soup = BeautifulSoup(resp.text, 'html.parser')
-        
-        # 尝试抓取页面上的日期
-        date_text = soup.get_text()
-        found_dates = re.findall(r'202\d[年/]\d{1,2}[月/]\d{1,2}', date_text)
-        current_page_date = found_dates[0].replace('年','/').replace('月','/').replace('日','') if found_dates else datetime.datetime.now().strftime('%Y/%m/%d')
-
-        # 抓取推文/文章列表项 (针对该站结构)
-        items = soup.select('li') + soup.select('article')
-        for item in items:
-            text = item.get_text(strip=True)
-            if len(text) > 20: # 过滤无意义短句
-                social_items.append({
-                    '日期': current_page_date,
-                    '内容': text,
-                    '来源': '社媒趋势'
-                })
-    except Exception as e:
-        print(f"⚠️ 社媒抓取跳过: {e}")
-    return social_items
-
 def main():
-    # 3.1 读取数据
+    # ==========================================
+    # 2. 数据读取与预处理
+    # ==========================================
     try:
         df = pd.read_csv(SHEET_URL)
     except Exception as e:
@@ -95,21 +59,22 @@ def main():
     df['是否头条'] = pd.to_numeric(df['是否头条'], errors='coerce').fillna(0).astype(int)
     df = df.fillna("")
 
+    # 定义变量，修复之前的 NameError 报错
     all_unique_companies = sorted(df['公司'].unique().tolist(), key=lambda x: x.encode('gbk') if isinstance(x, str) else x)
     all_unique_topics = sorted(df['话题'].unique().tolist())
     all_dates = df['日期'].unique().tolist()
     all_dates.sort(key=parse_date_for_sort, reverse=True)
 
-    social_news = fetch_external_social()
-
-    # 3.2 核心分发与排序逻辑
+    # ==========================================
+    # 3. 核心分发逻辑
+    # ==========================================
     news_data_map = {}
     headlines_map = {}
 
     for date in all_dates:
         day_df = df[df['日期'] == date].copy()
         
-        # 今日头条排序：数字升序 > 公司权重 > 话题权重
+        # A. 今日头条排序：数字升序 > 公司权重 > 话题权重
         headline_df = day_df[day_df['是否头条'] > 0].copy()
         if not headline_df.empty:
             headline_df['c_rank'] = headline_df['公司'].apply(get_company_rank)
@@ -121,11 +86,9 @@ def main():
         news_data_map[date] = {}
         
         def sort_section_data(data_df, is_other=False):
-            # 内部权重计算：头条置顶 > 话题顺序
             def calc_score(row):
                 val = row['是否头条']
                 return val if val > 0 else (1000 + get_topic_rank(row['话题']))
-            
             data_df['internal_score'] = data_df.apply(calc_score, axis=1)
             if is_other:
                 data_df['co_rank'] = data_df['公司'].apply(lambda x: OTHER_PRIORITY.index(x) if x in OTHER_PRIORITY else 999)
@@ -143,7 +106,6 @@ def main():
         if not other_df.empty: news_data_map[date]['行业新闻'] = sort_section_data(other_df, is_other=True)
 
     final_json_str = json.dumps(df.to_dict('records'), ensure_ascii=False)
-    final_social_json = json.dumps(social_news, ensure_ascii=False)
 
     # ==========================================
     # 4. HTML 模板
@@ -164,8 +126,8 @@ def main():
             .control-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding: 0 4px 6px 4px; border-bottom: 1px solid #f1f5f9; }
             .time-label { font-size: 10px; color: #94a3b8; }
             .date-picker { font-size: 10px; color: var(--primary); font-weight: bold; border: 1px solid #e2e8f0; border-radius: 2px; padding: 1px 4px; background: transparent; cursor: pointer; }
-            .tabs-nav { display: flex; justify-content: space-between; margin-bottom: 15px; border-bottom: 1px solid #f1f5f9; }
-            .tab-btn { padding: 8px 12px; cursor: pointer; border: none; background: none; font-size: 13.5px; font-weight: 600; color: #94a3b8; position: relative; }
+            .tabs-nav { display: flex; justify-content: center; margin-bottom: 15px; border-bottom: 1px solid #f1f5f9; }
+            .tab-btn { padding: 8px 16px; cursor: pointer; border: none; background: none; font-size: 13.5px; font-weight: 600; color: #94a3b8; position: relative; }
             .tab-btn.active { color: var(--primary) !important; }
             .tab-btn.active::after { content: ''; position: absolute; bottom: -1px; left: 0; width: 100%; height: 2px; background: var(--primary); }
             .tab-content { display: none; }
@@ -188,8 +150,6 @@ def main():
             .news-item.open .content-box { display: block; }
             .footer { font-size: 10px; color: #94a3b8; display: flex; justify-content: space-between; margin-top: 8px; }
             .link-btn { color: var(--primary); text-decoration: none; font-weight: 700; }
-            .social-card { background: #f8fafc; border-left: 4px solid #1a73e8; padding: 12px; margin-bottom: 10px; border-radius: 4px; }
-            .social-meta { font-size: 10px; color: #1a73e8; font-weight: 700; margin-bottom: 4px; }
         </style>
     </head>
     <body>
@@ -197,7 +157,6 @@ def main():
         <header><h1>全球 AI 核心动态内参</h1></header>
         <div class="tabs-nav">
             <div class="tab-btn active" id="btn-daily" onclick="switchTab('daily')">每日综述</div>
-            <div class="tab-btn" id="btn-social" onclick="switchTab('social')">社媒快讯</div>
             <div class="tab-btn" id="btn-filter" onclick="switchTab('filter')">历史检索</div>
         </div>
         
@@ -223,10 +182,6 @@ def main():
             {% endfor %}
         </div>
 
-        <div id="panel-social" class="tab-content">
-            <div id="social-results"></div>
-        </div>
-
         <div id="panel-filter" class="tab-content">
             <div style="padding:10px 0; display:flex; gap:6px; margin-bottom:15px; background: #fff;">
                 <select id="f-date" style="flex:1; font-size:11px;"><option value="all">全时间段</option>{% for d in dates %}<option value="{{d}}">{% if '至' in d %}{{ d.split('至')[1].strip() }}{% else %}{{ d }}{% endif %}</option>{% endfor %}</select>
@@ -239,7 +194,6 @@ def main():
     </div>
     <script>
         const rawData = {{ final_json_str | safe }};
-        const socialData = {{ final_social_json | safe }};
         
         function switchTab(id) {
             document.querySelectorAll('.tab-content').forEach(p => p.classList.remove('active'));
@@ -247,11 +201,10 @@ def main():
             document.getElementById('panel-' + id).classList.add('active');
             document.getElementById('btn-' + id).classList.add('active');
             
-            // 联动显示/隐藏顶部红框
+            // 联动显示/隐藏顶部控制条
             const ctrlBar = document.getElementById('main-control-bar');
             ctrlBar.style.display = (id === 'filter') ? 'none' : 'flex';
             
-            if(id === 'social') updateSocialView();
             if(id === 'filter') doSearch();
         }
 
@@ -260,31 +213,6 @@ def main():
             const target = document.getElementById('date-group-' + d);
             if(target) target.style.display = 'block';
             updateTimeLabel(d);
-            updateSocialView();
-        }
-        
-        function updateSocialView() {
-            const currentD = document.getElementById('dateSelect').value;
-            const container = document.getElementById('social-results');
-            
-            // 获取对比日期 (归一化处理)
-            const cleanD = currentD.includes('至') ? currentD.split('至')[1].trim() : currentD.trim();
-            const parts = cleanD.split('/');
-            const formats = [
-                cleanD, 
-                `${parts[0]}/${parts[1].padStart(2,'0')}/${parts[2].padStart(2,'0')}`,
-                `${parseInt(parts[1])}月${parseInt(parts[2])}日`
-            ];
-
-            const filtered = socialData.filter(it => {
-                return formats.some(fmt => it['日期'].includes(fmt) || it['内容'].includes(fmt));
-            });
-
-            if(filtered.length === 0) {
-                container.innerHTML = '<p style="text-align:center; padding:40px; color:#94a3b8; font-size:12px;">该时段暂无联动社媒快讯</p>';
-                return;
-            }
-            container.innerHTML = filtered.map(it => `<div class="social-card"><div class="social-meta">来源：${it['来源']}</div><div class="social-text">${it['内容']}</div></div>`).join('');
         }
 
         function updateTimeLabel(d) {
@@ -336,7 +264,6 @@ def main():
         news_data_map=news_data_map, 
         headlines_map=headlines_map, 
         final_json_str=final_json_str, 
-        final_social_json=final_social_json,
         all_companies=all_unique_companies,
         all_topics=all_unique_topics,
         SECONDARY_TITLE=SECONDARY_TITLE
