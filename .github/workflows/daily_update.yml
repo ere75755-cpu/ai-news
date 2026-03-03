@@ -7,9 +7,8 @@ on:
   schedule:
     # 北京时间 20:30 (UTC 12:30)
     - cron: '30 12 * * *'
-  workflow_dispatch: # 允许手动点击按钮立即运行
+  workflow_dispatch: 
 
-# 显式开启写入权限，防止权限不足导致 Push 失败
 permissions:
   contents: write
 
@@ -20,8 +19,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
         with:
-          # 获取所有历史记录，以便顺利 rebase
-          fetch-depth: 0
+          fetch-depth: 0 # 获取完整历史以确保 rebase 顺利
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -33,21 +31,23 @@ jobs:
           python -m pip install --upgrade pip
           pip install pandas jinja2
 
+      - name: Prepare Git
+        run: |
+          git config --global user.name "AI Analyst"
+          git config --global user.email "analyst@ai.com"
+
+      - name: Pull latest changes
+        run: |
+          # 先把远程最新的代码拉取下来，此时本地还没有运行 build_site.py，所以没有 unstaged changes
+          git pull origin main --rebase
+
       - name: Build index.html
         run: python build_site.py
 
       - name: Commit and Push
         run: |
-          git config --global user.name "AI Analyst"
-          git config --global user.email "analyst@ai.com"
-          
-          # 先拉取远程更新并合并，防止冲突 (Rejected 报错的关键解决方法)
-          git pull origin main --rebase
-          
-          # 添加生成的文件
           git add index.html CNAME
-          
-          # 只有在内容有变化时才执行 commit 和 push，避免无意义的报错
+          # 检查是否有内容变化
           if [ -n "$(git status --porcelain)" ]; then
             git commit -m "Auto-update news at $(date)"
             git push origin main
