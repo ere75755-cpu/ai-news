@@ -172,7 +172,7 @@ def main():
         <div id="panel-daily" class="tab-content active">
             {% for d in dates %}
             <div id="date-group-{{d}}" class="date-container" style="display: {{ 'block' if loop.first else 'none' }}">
-                {% if headlines_map[d] %}<div class="headline-section"><h2 class="headline-title">今日头条</h2>
+                {% if headlines_map[d] %}<div class="headline-section"><h2 class="headline-title">今日重点</h2>
                 {% for hl in headlines_map[d] %}<div class="hl-item"><div class="tag-group"><span class="tag tag-important">{{hl['话题']}}</span><span class="tag">{{hl['公司']}}</span></div>
                 <a href="{{hl['链接']}}" target="_blank" class="hl-title">{{hl['标题']}}</a><div class="hl-content">{{hl['核心内容']}}</div><div class="footer"><span>来源: {{hl['来源']}}</span><a href="{{hl['链接']}}" class="link-btn" target="_blank">阅读原文</a></div></div>{% endfor %}</div>{% endif %}
                 {% for co, items in news_data_map[d].items() %}<div class="company-section"><h2 class="sticky-title">{{co}}</h2>
