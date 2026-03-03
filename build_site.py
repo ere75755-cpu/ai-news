@@ -6,19 +6,20 @@ import os
 import datetime
 import requests
 from bs4 import BeautifulSoup
+import re
 
 # ==========================================
 # 1. 基础配置与排序权重定义
 # ==========================================
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1CgheqoqcKn-klAJCS8fWRdyP1ybBlG8ReqPLsqkFpl8/export?format=csv&gid=0"
-DIGEST_URL = "https://ai-news-digest.com/" # 目标抓取网站
+DIGEST_URL = "https://ai-news-digest.com/" 
 MY_DOMAIN = "www.aipulse.run"
 
 CORE_COMPANIES = ['OpenAI', 'Google', 'Anthropic', 'Meta', '字节跳动', '阿里巴巴', '腾讯', '百度']
 SECONDARY_COMPANIES = ['Kimi', 'MiniMax', '智谱', 'xAI', '可灵', 'DeepSeek']
 SECONDARY_TITLE = "其余重点关注公司"
+# 话题优先级：数据洞察 > 技术迭代 > 产品动态 > 商业动态 > 春节活动
 TOPIC_ORDER = ['数据洞察', '技术迭代', '产品动态', '商业动态', '春节活动']
-HEADLINE_TOPIC_ORDER = ['数据洞察', '技术迭代', '产品动态', '春节活动', '商业动态']
 
 OTHER_PRIORITY = [
     'Perplexity', 'Character.ai', 'Midjourney', 'Pika', 'Runway', 
@@ -49,36 +50,42 @@ def get_topic_rank(t_val):
     return TOPIC_ORDER.index(t_val) if t_val in TOPIC_ORDER else 99
 
 # ==========================================
-# 2. 社媒数据抓取模块
+# 2. 社媒快讯抓取逻辑
 # ==========================================
 def fetch_external_social():
-    print("尝试抓取 AI News Digest 社媒动态...")
+    print("🚀 正在抓取 AI News Digest 社媒快讯...")
     social_items = []
     try:
-        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
-        resp = requests.get(DIGEST_URL, headers=headers, timeout=10)
-        # 注意：此处需要根据 ai-news-digest.com 的实际 HTML 结构提取
-        # 暂时演示：提取其包含内容的段落
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'}
+        resp = requests.get(DIGEST_URL, headers=headers, timeout=15)
+        resp.encoding = 'utf-8'
         soup = BeautifulSoup(resp.text, 'html.parser')
-        # 假设其社媒动态在 class="social-post" 的 div 里
-        # 这里你可以后期根据目标站源码修改 selector
-        posts = soup.select('.social-post') 
-        for p in posts:
-            social_items.append({
-                '日期': datetime.datetime.now().strftime('%Y/%m/%d'), # 暂时匹配当日
-                '内容': p.get_text().strip(),
-                '来源': 'AI News Digest'
-            })
+        
+        # 尝试抓取页面上的日期
+        date_text = soup.get_text()
+        found_dates = re.findall(r'202\d[年/]\d{1,2}[月/]\d{1,2}', date_text)
+        current_page_date = found_dates[0].replace('年','/').replace('月','/').replace('日','') if found_dates else datetime.datetime.now().strftime('%Y/%m/%d')
+
+        # 抓取推文/文章列表项 (针对该站结构)
+        items = soup.select('li') + soup.select('article')
+        for item in items:
+            text = item.get_text(strip=True)
+            if len(text) > 20: # 过滤无意义短句
+                social_items.append({
+                    '日期': current_page_date,
+                    '内容': text,
+                    '来源': '社媒趋势'
+                })
     except Exception as e:
-        print(f"⚠️ 外部抓取跳过: {e}")
+        print(f"⚠️ 社媒抓取跳过: {e}")
     return social_items
 
 def main():
-    # 2.1 读取主数据
+    # 3.1 读取数据
     try:
         df = pd.read_csv(SHEET_URL)
     except Exception as e:
-        print(f"❌ 数据读取失败: {e}")
+        print(f"❌ 读取错误: {e}")
         if os.path.exists("data.csv"): df = pd.read_csv("data.csv")
         else: sys.exit(1)
 
@@ -93,36 +100,33 @@ def main():
     all_dates = df['日期'].unique().tolist()
     all_dates.sort(key=parse_date_for_sort, reverse=True)
 
-    # 2.2 准备社媒数据 (外部抓取 + 模拟)
     social_news = fetch_external_social()
 
-    # ==========================================
-    # 3. 核心分发逻辑
-    # ==========================================
+    # 3.2 核心分发与排序逻辑
     news_data_map = {}
     headlines_map = {}
 
     for date in all_dates:
         day_df = df[df['日期'] == date].copy()
         
-        # A. 今日头条处理
+        # 今日头条排序：数字升序 > 公司权重 > 话题权重
         headline_df = day_df[day_df['是否头条'] > 0].copy()
         if not headline_df.empty:
             headline_df['c_rank'] = headline_df['公司'].apply(get_company_rank)
             headline_df['t_rank'] = headline_df['话题'].apply(get_topic_rank)
-            headlines_map[date] = headline_df.sort_values(by=['是否头条', 'c_rank', 't_rank'], ascending=[True, True, True]).to_dict('records')
+            headlines_map[date] = headline_df.sort_values(by=['是否头条', 'c_rank', 't_rank']).to_dict('records')
         else:
             headlines_map[date] = []
 
         news_data_map[date] = {}
         
         def sort_section_data(data_df, is_other=False):
-            def calc_internal_score(row):
+            # 内部权重计算：头条置顶 > 话题顺序
+            def calc_score(row):
                 val = row['是否头条']
-                t_idx = get_topic_rank(row['话题'])
-                return val if val > 0 else (1000 + t_idx)
-
-            data_df['internal_score'] = data_df.apply(calc_internal_score, axis=1)
+                return val if val > 0 else (1000 + get_topic_rank(row['话题']))
+            
+            data_df['internal_score'] = data_df.apply(calc_score, axis=1)
             if is_other:
                 data_df['co_rank'] = data_df['公司'].apply(lambda x: OTHER_PRIORITY.index(x) if x in OTHER_PRIORITY else 999)
                 return data_df.sort_values(by=['internal_score', 'co_rank']).to_dict('records')
@@ -142,7 +146,7 @@ def main():
     final_social_json = json.dumps(social_news, ensure_ascii=False)
 
     # ==========================================
-    # 4. HTML 模板 (新增 Tab 切换与联动逻辑)
+    # 4. HTML 模板
     # ==========================================
     template_str = """
     <!DOCTYPE html>
@@ -154,7 +158,7 @@ def main():
         <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@700&display=swap" rel="stylesheet">
         <style>
             :root { --primary: #1a73e8; --header-bg: #475569; --bg: #ffffff; --text: #334155; --border: #f1f5f9; --sub-bg: #f8fafc; }
-            body { font-family: -apple-system, "PingFang SC", sans-serif; background: var(--bg); color: var(--text); margin: 0; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+            body { font-family: -apple-system, "PingFang SC", sans-serif; background: var(--bg); color: var(--text); margin: 0; line-height: 1.5; }
             .container { max-width: 780px; margin: auto; padding: 10px; }
             header h1 { font-family: 'Noto Serif SC', serif; text-align: center; font-size: 20px; margin: 15px 0 10px; color: #0f172a; }
             .control-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding: 0 4px 6px 4px; border-bottom: 1px solid #f1f5f9; }
@@ -170,7 +174,6 @@ def main():
             .headline-title { position: -webkit-sticky; position: sticky; top: 0; z-index: 1001; background: var(--header-bg); padding: 10px 0; margin: 0; color: #ffffff; text-align: center; font-size: 15px; font-weight: 700; letter-spacing: 3px; font-family: 'Noto Serif SC', serif; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
             .headline-section { margin-bottom: 30px; background: var(--sub-bg); padding-bottom: 10px; border-radius: 0 0 4px 4px; }
             .hl-item { padding: 12px; border-bottom: 1px solid #edf2f7; }
-            .hl-item:last-child { border-bottom: none; }
             .hl-title { font-size: 15px; font-weight: 700; color: #1e293b; text-decoration: none; display: block; margin-bottom: 4px; font-family: 'Noto Serif SC', serif; line-height: 1.4; }
             .hl-content { font-size: 12px; color: #475569; line-height: 1.6; margin: 6px 0; text-align: justify; }
             .news-item { padding: 10px 4px; border-bottom: 1px solid #f1f5f9; cursor: pointer; }
@@ -185,8 +188,8 @@ def main():
             .news-item.open .content-box { display: block; }
             .footer { font-size: 10px; color: #94a3b8; display: flex; justify-content: space-between; margin-top: 8px; }
             .link-btn { color: var(--primary); text-decoration: none; font-weight: 700; }
-            .social-card { background: #f8fafc; border: 1px solid #e2e8f0; padding: 15px; margin-bottom: 10px; border-radius: 8px; border-left: 4px solid #1a73e8; }
-            .social-meta { font-size: 10px; color: #1a73e8; font-weight: 700; margin-bottom: 5px; text-transform: uppercase; }
+            .social-card { background: #f8fafc; border-left: 4px solid #1a73e8; padding: 12px; margin-bottom: 10px; border-radius: 4px; }
+            .social-meta { font-size: 10px; color: #1a73e8; font-weight: 700; margin-bottom: 4px; }
         </style>
     </head>
     <body>
@@ -197,7 +200,8 @@ def main():
             <div class="tab-btn" id="btn-social" onclick="switchTab('social')">社媒快讯</div>
             <div class="tab-btn" id="btn-filter" onclick="switchTab('filter')">历史检索</div>
         </div>
-        <div class="control-bar">
+        
+        <div id="main-control-bar" class="control-bar">
             <div id="current-time-label" class="time-label">监测周期：加载中...</div>
             <select id="dateSelect" class="date-picker" onchange="changeDate(this.value)">
                 {% for d in dates %}
@@ -242,7 +246,13 @@ def main():
             document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
             document.getElementById('panel-' + id).classList.add('active');
             document.getElementById('btn-' + id).classList.add('active');
+            
+            // 联动显示/隐藏顶部红框
+            const ctrlBar = document.getElementById('main-control-bar');
+            ctrlBar.style.display = (id === 'filter') ? 'none' : 'flex';
+            
             if(id === 'social') updateSocialView();
+            if(id === 'filter') doSearch();
         }
 
         function changeDate(d) {
@@ -256,20 +266,25 @@ def main():
         function updateSocialView() {
             const currentD = document.getElementById('dateSelect').value;
             const container = document.getElementById('social-results');
-            // 此处逻辑：日期包含“至”则匹配结束日期，否则全匹配
-            const filterDate = currentD.includes('至') ? currentD.split('至')[1].trim() : currentD;
-            const filtered = socialData.filter(it => it['日期'].includes(filterDate));
             
+            // 获取对比日期 (归一化处理)
+            const cleanD = currentD.includes('至') ? currentD.split('至')[1].trim() : currentD.trim();
+            const parts = cleanD.split('/');
+            const formats = [
+                cleanD, 
+                `${parts[0]}/${parts[1].padStart(2,'0')}/${parts[2].padStart(2,'0')}`,
+                `${parseInt(parts[1])}月${parseInt(parts[2])}日`
+            ];
+
+            const filtered = socialData.filter(it => {
+                return formats.some(fmt => it['日期'].includes(fmt) || it['内容'].includes(fmt));
+            });
+
             if(filtered.length === 0) {
                 container.innerHTML = '<p style="text-align:center; padding:40px; color:#94a3b8; font-size:12px;">该时段暂无联动社媒快讯</p>';
                 return;
             }
-            container.innerHTML = filtered.map(it => `
-                <div class="social-card">
-                    <div class="social-meta">来源：${it['来源']}</div>
-                    <div class="social-text">${it['内容']}</div>
-                </div>
-            `).join('');
+            container.innerHTML = filtered.map(it => `<div class="social-card"><div class="social-meta">来源：${it['来源']}</div><div class="social-text">${it['内容']}</div></div>`).join('');
         }
 
         function updateTimeLabel(d) {
@@ -295,19 +310,17 @@ def main():
 
         window.onload = () => { 
             const select = document.getElementById('dateSelect'); 
-            if(select) { changeDate(select.value); updateSocialView(); }
+            if(select) { changeDate(select.value); }
         };
 
         function doSearch() {
-            const d = document.getElementById('f-date').value;
-            const c = document.getElementById('f-co').value;
-            const t = document.getElementById('f-topic').value;
+            const d = document.getElementById('f-date').value, c = document.getElementById('f-co').value, t = document.getElementById('f-topic').value;
             const filtered = rawData.filter(it => (d === 'all' || it['日期'] == d) && (c === 'all' || it['公司'] == c) && (t === 'all' || it['话题'] == t));
             const resDiv = document.getElementById('results');
             resDiv.innerHTML = filtered.length ? '' : '<p style="text-align:center; padding:30px; font-size:11px; color:#999;">无匹配新闻</p>';
             filtered.forEach(it => {
                 const item = document.createElement('div'); item.className = 'news-item'; item.onclick = () => item.classList.toggle('open');
-                const showD = it['日期'].includes('至') ? it['日期'].split('至')[1].trim() : it['日期'];
+                const showD = it['日期'].includes('至') ? it['日期'].split('至')[1].strip() : it['日期'];
                 item.innerHTML = `<div class="tag-group"><span class="tag tag-important">${it['话题']}</span><span class="tag">${showD}</span><span class="tag">${it['公司']}</span></div><span class="title-row">${it['标题']}</span><div class="content-box">${it['核心内容']}<div class="footer"><span>来源: ${it['来源']}</span><a href="${it['链接']}" class="link-btn" target="_blank">阅读原文</a></div></div>`;
                 resDiv.appendChild(item);
             });
@@ -317,7 +330,7 @@ def main():
     </html>
     """
 
-    # 4.1 最终渲染输出
+    # 4.1 输出
     html = Template(template_str).render(
         dates=all_dates, 
         news_data_map=news_data_map, 
@@ -329,10 +342,8 @@ def main():
         SECONDARY_TITLE=SECONDARY_TITLE
     )
     
-    with open("index.html", "w", encoding="utf-8") as f:
-        f.write(html)
-    with open("CNAME", "w") as f:
-        f.write(MY_DOMAIN)
+    with open("index.html", "w", encoding="utf-8") as f: f.write(html)
+    with open("CNAME", "w") as f: f.write(MY_DOMAIN)
 
 if __name__ == "__main__":
     main()
