@@ -3,19 +3,22 @@ from jinja2 import Template
 import json
 import sys
 import os
-import datetime # 导入 datetime 模块
+import datetime
+import requests
+from bs4 import BeautifulSoup
 
 # ==========================================
 # 1. 基础配置与排序权重定义
 # ==========================================
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1CgheqoqcKn-klAJCS8fWRdyP1ybBlG8ReqPLsqkFpl8/export?format=csv&gid=0"
+DIGEST_URL = "https://ai-news-digest.com/" # 目标抓取网站
 MY_DOMAIN = "www.aipulse.run"
 
 CORE_COMPANIES = ['OpenAI', 'Google', 'Anthropic', 'Meta', '字节跳动', '阿里巴巴', '腾讯', '百度']
 SECONDARY_COMPANIES = ['Kimi', 'MiniMax', '智谱', 'xAI', '可灵', 'DeepSeek']
 SECONDARY_TITLE = "其余重点关注公司"
-# 话题优先级：数据洞察 > 技术迭代 > 产品动态 > 商业动态 > 春节活动
 TOPIC_ORDER = ['数据洞察', '技术迭代', '产品动态', '商业动态', '春节活动']
+HEADLINE_TOPIC_ORDER = ['数据洞察', '技术迭代', '产品动态', '春节活动', '商业动态']
 
 OTHER_PRIORITY = [
     'Perplexity', 'Character.ai', 'Midjourney', 'Pika', 'Runway', 
@@ -26,27 +29,17 @@ OTHER_PRIORITY = [
     'Sanctuary AI', '1X Technologies', 'Agility Robotics'
 ]
 
-# --- 日期解析函数 ---
+# --- 辅助函数 ---
 def parse_date_for_sort(date_str):
-    """
-    解析日期字符串，用于排序。
-    如果日期是 'yyyy/mm/dd至yyyy/mm/dd' 格式，则使用结束日期进行排序。
-    否则，使用单一日期。
-    """
     if '至' in date_str:
-        # 对于日期范围，我们使用范围的结束日期进行排序，确保最新范围排在前面
         date_part = date_str.split('至')[1].strip()
     else:
         date_part = date_str.strip()
-            
     try:
         return datetime.datetime.strptime(date_part, '%Y/%m/%d')
-    except ValueError:
-        # 如果日期格式不符合预期，返回一个极小值，确保它排在最后
-        print(f"警告: 无法解析日期字符串 '{date_str}'。将其排在最后。")
+    except:
         return datetime.datetime.min
 
-# --- 核心分发逻辑辅助函数 (已移至全局作用域) ---
 def get_company_rank(c_val):
     if c_val in CORE_COMPANIES: return CORE_COMPANIES.index(c_val)
     if c_val in SECONDARY_COMPANIES: return len(CORE_COMPANIES) + SECONDARY_COMPANIES.index(c_val)
@@ -55,101 +48,101 @@ def get_company_rank(c_val):
 def get_topic_rank(t_val):
     return TOPIC_ORDER.index(t_val) if t_val in TOPIC_ORDER else 99
 
+# ==========================================
+# 2. 社媒数据抓取模块
+# ==========================================
+def fetch_external_social():
+    print("尝试抓取 AI News Digest 社媒动态...")
+    social_items = []
+    try:
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+        resp = requests.get(DIGEST_URL, headers=headers, timeout=10)
+        # 注意：此处需要根据 ai-news-digest.com 的实际 HTML 结构提取
+        # 暂时演示：提取其包含内容的段落
+        soup = BeautifulSoup(resp.text, 'html.parser')
+        # 假设其社媒动态在 class="social-post" 的 div 里
+        # 这里你可以后期根据目标站源码修改 selector
+        posts = soup.select('.social-post') 
+        for p in posts:
+            social_items.append({
+                '日期': datetime.datetime.now().strftime('%Y/%m/%d'), # 暂时匹配当日
+                '内容': p.get_text().strip(),
+                '来源': 'AI News Digest'
+            })
+    except Exception as e:
+        print(f"⚠️ 外部抓取跳过: {e}")
+    return social_items
+
 def main():
-    # ==========================================
-    # 2. 数据读取与预处理
-    # ==========================================
+    # 2.1 读取主数据
     try:
         df = pd.read_csv(SHEET_URL)
     except Exception as e:
-        print(f"❌ 无法从 Google Sheets 获取数据: {e}")
-        if os.path.exists("data.csv"):
-            df = pd.read_csv("data.csv")
-        else:
-            sys.exit(1)
+        print(f"❌ 数据读取失败: {e}")
+        if os.path.exists("data.csv"): df = pd.read_csv("data.csv")
+        else: sys.exit(1)
 
     df.columns = [c.strip() for c in df.columns]
     name_map = {'字节': '字节跳动', '阿里': '阿里巴巴', 'Baidu': '百度', 'minimax': 'MiniMax', '智谱AI': '智谱', 'OpenAI ': 'OpenAI'}
     df['公司'] = df['公司'].replace(name_map)
-        
-    # 转换“是否头条”为数字，处理空格和空值
     df['是否头条'] = pd.to_numeric(df['是否头条'], errors='coerce').fillna(0).astype(int)
     df = df.fillna("")
-        
-    # 提取所有不重复公司（供检索使用）
+
     all_unique_companies = sorted(df['公司'].unique().tolist(), key=lambda x: x.encode('gbk') if isinstance(x, str) else x)
-    # --- 新增：提取所有不重复话题（供检索使用） ---
     all_unique_topics = sorted(df['话题'].unique().tolist())
-
-    # --- 获取所有唯一日期并按最新日期降序排列 ---
     all_dates = df['日期'].unique().tolist()
-    all_dates.sort(key=parse_date_for_sort, reverse=True) # 使用自定义函数进行排序，最新日期在前
+    all_dates.sort(key=parse_date_for_sort, reverse=True)
 
+    # 2.2 准备社媒数据 (外部抓取 + 模拟)
+    social_news = fetch_external_social()
+
+    # ==========================================
+    # 3. 核心分发逻辑
+    # ==========================================
     news_data_map = {}
     headlines_map = {}
 
-    for date in all_dates: # 这里的循环将按照排序后的日期顺序进行
-        day_df = df[df['日期'] == date].copy() # 使用原始 df
-            
-        # --- A. 今日头条板块排序 ---
-        # 逻辑：1. 数字从小到大排 (1 > 2)； 2. 数字相同时按公司顺序排； 3. 公司相同时按话题排
+    for date in all_dates:
+        day_df = df[df['日期'] == date].copy()
+        
+        # A. 今日头条处理
         headline_df = day_df[day_df['是否头条'] > 0].copy()
         if not headline_df.empty:
-            headline_df['c_rank'] = headline_df['公司'].apply(get_company_rank) # 现在 get_company_rank 在全局作用域已定义
-            headline_df['t_rank'] = headline_df['话题'].apply(get_topic_rank)   # 现在 get_topic_rank 在全局作用域已定义
+            headline_df['c_rank'] = headline_df['公司'].apply(get_company_rank)
+            headline_df['t_rank'] = headline_df['话题'].apply(get_topic_rank)
             headlines_map[date] = headline_df.sort_values(by=['是否头条', 'c_rank', 't_rank'], ascending=[True, True, True]).to_dict('records')
         else:
             headlines_map[date] = []
 
         news_data_map[date] = {}
-            
-        # --- B. 分公司/板块内部排序辅助函数 ---
-        # 这个函数可以保持在 main 内部，因为它只在 main 内部被调用，并且在被调用前已定义
+        
         def sort_section_data(data_df, is_other=False):
-            # 排序权重：
-            # 1. 头条(数字>0)永远在非头条(数字=0)之前
-            # 2. 如果都是头条，按数字 1,2,3 升序
-            # 3. 如果都不是头条，按话题优先级排
-            # 4. 最后按公司预设权重排
-                
             def calc_internal_score(row):
                 val = row['是否头条']
-                t_idx = get_topic_rank(row['话题']) # get_topic_rank 在全局作用域，可以访问
-                if val > 0:
-                    # 头条区间：0-100分。数字越小分数越低，越靠前
-                    return val 
-                else:
-                    # 非头条区间：1000分起。按话题权重累加
-                    return 1000 + t_idx
+                t_idx = get_topic_rank(row['话题'])
+                return val if val > 0 else (1000 + t_idx)
 
             data_df['internal_score'] = data_df.apply(calc_internal_score, axis=1)
-                
             if is_other:
                 data_df['co_rank'] = data_df['公司'].apply(lambda x: OTHER_PRIORITY.index(x) if x in OTHER_PRIORITY else 999)
                 return data_df.sort_values(by=['internal_score', 'co_rank']).to_dict('records')
-            else:
-                return data_df.sort_values(by='internal_score').to_dict('records')
+            return data_df.sort_values(by='internal_score').to_dict('records')
 
-        # 1. 核心大厂
         for company in CORE_COMPANIES:
             comp_df = day_df[day_df['公司'] == company].copy()
-            if not comp_df.empty:
-                news_data_map[date][company] = sort_section_data(comp_df)
-            
-        # 2. 重点关注模型
+            if not comp_df.empty: news_data_map[date][company] = sort_section_data(comp_df)
+        
         sec_df = day_df[day_df['公司'].isin(SECONDARY_COMPANIES)].copy()
-        if not sec_df.empty:
-            news_data_map[date][SECONDARY_TITLE] = sort_section_data(sec_df)
-            
-        # 3. 其余行业新闻
-        other_df = day_df[~df['公司'].isin(CORE_COMPANIES + SECONDARY_COMPANIES)].copy()
-        if not other_df.empty:
-            news_data_map[date]['行业新闻'] = sort_section_data(other_df, is_other=True)
+        if not sec_df.empty: news_data_map[date][SECONDARY_TITLE] = sort_section_data(sec_df)
+        
+        other_df = day_df[~day_df['公司'].isin(CORE_COMPANIES + SECONDARY_COMPANIES)].copy()
+        if not other_df.empty: news_data_map[date]['行业新闻'] = sort_section_data(other_df, is_other=True)
 
     final_json_str = json.dumps(df.to_dict('records'), ensure_ascii=False)
+    final_social_json = json.dumps(social_news, ensure_ascii=False)
 
     # ==========================================
-    # 4. HTML 模板
+    # 4. HTML 模板 (新增 Tab 切换与联动逻辑)
     # ==========================================
     template_str = """
     <!DOCTYPE html>
@@ -167,8 +160,8 @@ def main():
             .control-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding: 0 4px 6px 4px; border-bottom: 1px solid #f1f5f9; }
             .time-label { font-size: 10px; color: #94a3b8; }
             .date-picker { font-size: 10px; color: var(--primary); font-weight: bold; border: 1px solid #e2e8f0; border-radius: 2px; padding: 1px 4px; background: transparent; cursor: pointer; }
-            .tabs-nav { display: flex; justify-content: center; margin-bottom: 15px; border-bottom: 1px solid #f1f5f9; }
-            .tab-btn { padding: 8px 16px; cursor: pointer; border: none; background: none; font-size: 13.5px; font-weight: 600; color: #94a3b8; position: relative; }
+            .tabs-nav { display: flex; justify-content: space-between; margin-bottom: 15px; border-bottom: 1px solid #f1f5f9; }
+            .tab-btn { padding: 8px 12px; cursor: pointer; border: none; background: none; font-size: 13.5px; font-weight: 600; color: #94a3b8; position: relative; }
             .tab-btn.active { color: var(--primary) !important; }
             .tab-btn.active::after { content: ''; position: absolute; bottom: -1px; left: 0; width: 100%; height: 2px; background: var(--primary); }
             .tab-content { display: none; }
@@ -192,6 +185,8 @@ def main():
             .news-item.open .content-box { display: block; }
             .footer { font-size: 10px; color: #94a3b8; display: flex; justify-content: space-between; margin-top: 8px; }
             .link-btn { color: var(--primary); text-decoration: none; font-weight: 700; }
+            .social-card { background: #f8fafc; border: 1px solid #e2e8f0; padding: 15px; margin-bottom: 10px; border-radius: 8px; border-left: 4px solid #1a73e8; }
+            .social-meta { font-size: 10px; color: #1a73e8; font-weight: 700; margin-bottom: 5px; text-transform: uppercase; }
         </style>
     </head>
     <body>
@@ -199,91 +194,90 @@ def main():
         <header><h1>全球 AI 核心动态内参</h1></header>
         <div class="tabs-nav">
             <div class="tab-btn active" id="btn-daily" onclick="switchTab('daily')">每日综述</div>
+            <div class="tab-btn" id="btn-social" onclick="switchTab('social')">社媒快讯</div>
             <div class="tab-btn" id="btn-filter" onclick="switchTab('filter')">历史检索</div>
         </div>
+        <div class="control-bar">
+            <div id="current-time-label" class="time-label">监测周期：加载中...</div>
+            <select id="dateSelect" class="date-picker" onchange="changeDate(this.value)">
+                {% for d in dates %}
+                <option value="{{d}}">{% if '至' in d %}{{ d.split('至')[1].strip() }}{% else %}{{ d }}{% endif %}</option>
+                {% endfor %}
+            </select>
+        </div>
+
         <div id="panel-daily" class="tab-content active">
-            <div class="control-bar">
-                <div id="current-time-label" class="time-label">监测周期：加载中...</div>
-                <div style="display: flex; align-items: center;">
-                    <span style="font-size:10px; color:#94a3b8;">日期：</span>
-                    <select id="dateSelect" class="date-picker" onchange="changeDate(this.value)">
-                        {% for d in dates %}
-                        <option value="{{d}}">
-                            {% if '至' in d %}{{ d.split('至')[1].strip() }}{% else %}{{ d }}{% endif %}
-                        </option>
-                        {% endfor %}
-                    </select>
-                </div>
-            </div>
             {% for d in dates %}
             <div id="date-group-{{d}}" class="date-container" style="display: {{ 'block' if loop.first else 'none' }}">
-                {% if headlines_map[d] %}
-                <div class="headline-section">
-                    <h2 class="headline-title">今日头条</h2>
-                    {% for hl in headlines_map[d] %}
-                    <div class="hl-item">
-                        <div class="tag-group">
-                            <span class="tag tag-important">{{hl['话题']}}</span>
-                            <span class="tag">公司/模型：{{hl['公司']}}</span>
-                        </div>
-                        <a href="{{hl['链接']}}" target="_blank" class="hl-title">{{hl['标题']}}</a>
-                        <div class="hl-content">{{hl['核心内容']}}</div>
-                        <div class="footer"><span>来源: {{hl['来源']}}</span><a href="{{hl['链接']}}" class="link-btn" target="_blank">阅读原文</a></div>
-                    </div>
-                    {% endfor %}
-                </div>
-                {% endif %}
-                {% for co, items in news_data_map[d].items() %}
-                <div class="company-section">
-                    <h2 class="sticky-title">{{co}}</h2>
-                    {% for it in items %}
-                    <div class="news-item" onclick="this.classList.toggle('open')">
-                        <div class="tag-group">
-                            <span class="tag tag-important">{{it['话题']}}</span>
-                            {% if co == SECONDARY_TITLE or co == '行业新闻' %}<span class="tag tag-domestic">{{it['公司']}}</span>{% endif %}
-                        </div>
-                        <span class="title-row">{{it['标题']}}</span>
-                        <div class="content-box">{{it['核心内容']}}<div class="footer"><span>来源: {{it['来源']}}</span><a href="{{it['链接']}}" class="link-btn" target="_blank" onclick="event.stopPropagation();">阅读原文</a></div></div>
-                    </div>
-                    {% endfor %}
-                </div>
-                {% endfor %}
+                {% if headlines_map[d] %}<div class="headline-section"><h2 class="headline-title">今日头条</h2>
+                {% for hl in headlines_map[d] %}<div class="hl-item"><div class="tag-group"><span class="tag tag-important">{{hl['话题']}}</span><span class="tag">{{hl['公司']}}</span></div>
+                <a href="{{hl['链接']}}" target="_blank" class="hl-title">{{hl['标题']}}</a><div class="hl-content">{{hl['核心内容']}}</div><div class="footer"><span>来源: {{hl['来源']}}</span><a href="{{hl['链接']}}" class="link-btn" target="_blank">阅读原文</a></div></div>{% endfor %}</div>{% endif %}
+                {% for co, items in news_data_map[d].items() %}<div class="company-section"><h2 class="sticky-title">{{co}}</h2>
+                {% for it in items %}<div class="news-item" onclick="this.classList.toggle('open')"><div class="tag-group"><span class="tag tag-important">{{it['话题']}}</span>{% if co == SECONDARY_TITLE or co == '行业新闻' %}<span class="tag tag-domestic">{{it['公司']}}</span>{% endif %}</div>
+                <span class="title-row">{{it['标题']}}</span><div class="content-box">{{it['核心内容']}}<div class="footer"><span>来源: {{it['来源']}}</span><a href="{{it['链接']}}" class="link-btn" target="_blank" onclick="event.stopPropagation();">阅读原文</a></div></div></div>{% endfor %}</div>{% endfor %}
             </div>
             {% endfor %}
         </div>
+
+        <div id="panel-social" class="tab-content">
+            <div id="social-results"></div>
+        </div>
+
         <div id="panel-filter" class="tab-content">
-            <div style="padding:10px 0; display:flex; gap:6px; margin-bottom:15px; position: sticky; top: 0; z-index: 101; background: #fff; border-bottom: 1px solid #eee;">
+            <div style="padding:10px 0; display:flex; gap:6px; margin-bottom:15px; background: #fff;">
                 <select id="f-date" style="flex:1; font-size:11px;"><option value="all">全时间段</option>{% for d in dates %}<option value="{{d}}">{% if '至' in d %}{{ d.split('至')[1].strip() }}{% else %}{{ d }}{% endif %}</option>{% endfor %}</select>
-                <select id="f-co" style="flex:1; font-size:11px;"><option value="all">所有公司/模型</option>{% for c in all_companies %}<option value="{{c}}">{{c}}</option>{% endfor %}</select>
-                <select id="f-topic" style="flex:1; font-size:11px;"><option value="all">所有话题类型</option>{% for t in all_topics %}<option value="{{t}}">{{t}}</option>{% endfor %}</select> {# NEW: 话题筛选器 #}
-                <button onclick="doSearch()" style="background:var(--primary); color:white; border:none; padding:4px 12px; font-size:11px; border-radius:2px; cursor:pointer;">检索</button>
+                <select id="f-co" style="flex:1; font-size:11px;"><option value="all">所有公司</option>{% for c in all_companies %}<option value="{{c}}">{{c}}</option>{% endfor %}</select>
+                <select id="f-topic" style="flex:1; font-size:11px;"><option value="all">所有话题</option>{% for t in all_topics %}<option value="{{t}}">{{t}}</option>{% endfor %}</select>
+                <button onclick="doSearch()" style="background:var(--primary); color:white; border:none; padding:4px 12px; font-size:11px; border-radius:2px;">检索</button>
             </div>
             <div id="results"></div>
         </div>
     </div>
     <script>
         const rawData = {{ final_json_str | safe }};
+        const socialData = {{ final_social_json | safe }};
+        
         function switchTab(id) {
             document.querySelectorAll('.tab-content').forEach(p => p.classList.remove('active'));
             document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
             document.getElementById('panel-' + id).classList.add('active');
             document.getElementById('btn-' + id).classList.add('active');
-            window.scrollTo(0,0);
-            if(id === 'filter') doSearch();
+            if(id === 'social') updateSocialView();
         }
+
         function changeDate(d) {
             document.querySelectorAll('.date-container').forEach(g => g.style.display = 'none');
             const target = document.getElementById('date-group-' + d);
-            if(target) { target.style.display = 'block'; updateTimeLabel(d); }
+            if(target) target.style.display = 'block';
+            updateTimeLabel(d);
+            updateSocialView();
         }
         
+        function updateSocialView() {
+            const currentD = document.getElementById('dateSelect').value;
+            const container = document.getElementById('social-results');
+            // 此处逻辑：日期包含“至”则匹配结束日期，否则全匹配
+            const filterDate = currentD.includes('至') ? currentD.split('至')[1].trim() : currentD;
+            const filtered = socialData.filter(it => it['日期'].includes(filterDate));
+            
+            if(filtered.length === 0) {
+                container.innerHTML = '<p style="text-align:center; padding:40px; color:#94a3b8; font-size:12px;">该时段暂无联动社媒快讯</p>';
+                return;
+            }
+            container.innerHTML = filtered.map(it => `
+                <div class="social-card">
+                    <div class="social-meta">来源：${it['来源']}</div>
+                    <div class="social-text">${it['内容']}</div>
+                </div>
+            `).join('');
+        }
+
         function updateTimeLabel(d) {
             let startLabel = ""; let endLabel = "";
             if (d.includes("至")) {
                 const parts = d.split("至");
-                const startObj = new Date(parts[0].trim());
-                const endObj = new Date(parts[1].trim());
-                if (!isNaN(startObj) && !isNaN(endObj)) {
+                const startObj = new Date(parts[0].trim()); const endObj = new Date(parts[1].trim());
+                if (!isNaN(startObj)) {
                     startObj.setDate(startObj.getDate() - 1);
                     startLabel = startObj.getFullYear() + '/' + (startObj.getMonth() + 1) + '/' + startObj.getDate() + ' 17:00';
                     endLabel = endObj.getFullYear() + '/' + (endObj.getMonth() + 1) + '/' + endObj.getDate() + ' 17:00';
@@ -291,45 +285,30 @@ def main():
             } else {
                 const current = new Date(d);
                 if (!isNaN(current)) {
-                    const prev = new Date(current);
-                    prev.setDate(current.getDate() - 1);
+                    const prev = new Date(current); prev.setDate(current.getDate() - 1);
                     startLabel = prev.getFullYear() + '/' + (prev.getMonth() + 1) + '/' + prev.getDate() + ' 17:00';
                     endLabel = current.getFullYear() + '/' + (current.getMonth() + 1) + '/' + current.getDate() + ' 17:00';
                 }
             }
-            if (startLabel && endLabel) {
-                document.getElementById('current-time-label').innerText = "监测周期：" + startLabel + " 至 " + endLabel;
-            } else {
-                document.getElementById('current-time-label').innerText = "监测周期：" + d;
-            }
+            document.getElementById('current-time-label').innerText = startLabel ? "监测周期：" + startLabel + " 至 " + endLabel : "监测周期：" + d;
         }
 
         window.onload = () => { 
             const select = document.getElementById('dateSelect'); 
-            if(select) changeDate(select.value); 
-            // 确保 doSearch 在页面加载时为筛选面板初始化一次（如果它是默认激活的）
-            if (document.getElementById('panel-filter').classList.contains('active')) {
-                doSearch();
-            }
+            if(select) { changeDate(select.value); updateSocialView(); }
         };
 
         function doSearch() {
             const d = document.getElementById('f-date').value;
             const c = document.getElementById('f-co').value;
-            const t = document.getElementById('f-topic').value; // NEW: 获取话题筛选值
-
-            const filtered = rawData.filter(it => 
-                (d === 'all' || it['日期'] == d) && 
-                (c === 'all' || it['公司'] == c) &&
-                (t === 'all' || it['话题'] == t) // NEW: 添加话题筛选条件
-            );
-
+            const t = document.getElementById('f-topic').value;
+            const filtered = rawData.filter(it => (d === 'all' || it['日期'] == d) && (c === 'all' || it['公司'] == c) && (t === 'all' || it['话题'] == t));
             const resDiv = document.getElementById('results');
             resDiv.innerHTML = filtered.length ? '' : '<p style="text-align:center; padding:30px; font-size:11px; color:#999;">无匹配新闻</p>';
             filtered.forEach(it => {
                 const item = document.createElement('div'); item.className = 'news-item'; item.onclick = () => item.classList.toggle('open');
                 const showD = it['日期'].includes('至') ? it['日期'].split('至')[1].trim() : it['日期'];
-                item.innerHTML = `<div class="tag-group"><span class="tag tag-important">${it['话题']}</span><span class="tag">${showD}</span><span class="tag">公司/模型：${it['公司']}</span></div><span class="title-row">${it['标题']}</span><div class="content-box">${it['核心内容']}<div class="footer"><span>来源: ${it['来源']}</span><a href="${it['链接']}" class="link-btn" target="_blank" onclick="event.stopPropagation();">阅读原文</a></div></div>`;
+                item.innerHTML = `<div class="tag-group"><span class="tag tag-important">${it['话题']}</span><span class="tag">${showD}</span><span class="tag">${it['公司']}</span></div><span class="title-row">${it['标题']}</span><div class="content-box">${it['核心内容']}<div class="footer"><span>来源: ${it['来源']}</span><a href="${it['链接']}" class="link-btn" target="_blank">阅读原文</a></div></div>`;
                 resDiv.appendChild(item);
             });
         }
@@ -338,20 +317,20 @@ def main():
     </html>
     """
 
-    # 最终渲染输出
+    # 4.1 最终渲染输出
     html = Template(template_str).render(
-        dates=all_dates, # 传递已经排序的日期列表
+        dates=all_dates, 
         news_data_map=news_data_map, 
         headlines_map=headlines_map, 
         final_json_str=final_json_str, 
+        final_social_json=final_social_json,
         all_companies=all_unique_companies,
-        all_topics=all_unique_topics, # NEW: 传递所有话题
+        all_topics=all_unique_topics,
         SECONDARY_TITLE=SECONDARY_TITLE
     )
-        
+    
     with open("index.html", "w", encoding="utf-8") as f:
         f.write(html)
-            
     with open("CNAME", "w") as f:
         f.write(MY_DOMAIN)
 
