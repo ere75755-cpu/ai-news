@@ -1,12 +1,17 @@
 name: Daily AI News Update
+
 on:
   push:
     branches:
       - main
   schedule:
-    # 北京时间 20:30 (即 UTC 12:30)
-    - cron: '30 12 * * *' 
-  workflow_dispatch: 
+    # 北京时间 20:30 (UTC 12:30)
+    - cron: '30 12 * * *'
+  workflow_dispatch: # 允许手动点击按钮立即运行
+
+# 显式开启写入权限，防止权限不足导致 Push 失败
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -14,6 +19,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
+        with:
+          # 获取所有历史记录，以便顺利 rebase
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -23,7 +31,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pandas jinja2 requests beautifulsoup4
+          pip install pandas jinja2
 
       - name: Build index.html
         run: python build_site.py
@@ -32,6 +40,17 @@ jobs:
         run: |
           git config --global user.name "AI Analyst"
           git config --global user.email "analyst@ai.com"
+          
+          # 先拉取远程更新并合并，防止冲突 (Rejected 报错的关键解决方法)
+          git pull origin main --rebase
+          
+          # 添加生成的文件
           git add index.html CNAME
-          git commit -m "Auto-update news at $(date)" || exit 0
-          git push
+          
+          # 只有在内容有变化时才执行 commit 和 push，避免无意义的报错
+          if [ -n "$(git status --porcelain)" ]; then
+            git commit -m "Auto-update news at $(date)"
+            git push origin main
+          else
+            echo "No changes to commit, skipping push."
+          fi
