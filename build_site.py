@@ -14,7 +14,6 @@ MY_DOMAIN = "www.aipulse.run"
 CORE_COMPANIES = ['OpenAI', 'Google', 'Anthropic', 'Meta', '字节跳动', '阿里巴巴', '腾讯', '百度']
 SECONDARY_COMPANIES = ['Kimi', 'MiniMax', '智谱', 'xAI', '可灵', 'DeepSeek']
 SECONDARY_TITLE = "其余重点关注公司"
-# 话题优先级：数据洞察 > 技术迭代 > 产品动态 > 商业动态 > 春节活动
 TOPIC_ORDER = ['数据洞察', '技术迭代', '产品动态', '商业动态', '春节活动']
 
 OTHER_PRIORITY = [
@@ -56,10 +55,11 @@ def main():
     df.columns = [c.strip() for c in df.columns]
     name_map = {'字节': '字节跳动', '阿里': '阿里巴巴', 'Baidu': '百度', 'minimax': 'MiniMax', '智谱AI': '智谱', 'OpenAI ': 'OpenAI'}
     df['公司'] = df['公司'].replace(name_map)
+    
+    # 核心：确保“是否头条”列是干净的数字
     df['是否头条'] = pd.to_numeric(df['是否头条'], errors='coerce').fillna(0).astype(int)
     df = df.fillna("")
 
-    # 定义变量，修复之前的 NameError 报错
     all_unique_companies = sorted(df['公司'].unique().tolist(), key=lambda x: x.encode('gbk') if isinstance(x, str) else x)
     all_unique_topics = sorted(df['话题'].unique().tolist())
     all_dates = df['日期'].unique().tolist()
@@ -74,7 +74,7 @@ def main():
     for date in all_dates:
         day_df = df[df['日期'] == date].copy()
         
-        # A. 今日头条排序：数字升序 > 公司权重 > 话题权重
+        # A. 今日重点排序：数字升序 > 公司权重 > 话题权重
         headline_df = day_df[day_df['是否头条'] > 0].copy()
         if not headline_df.empty:
             headline_df['c_rank'] = headline_df['公司'].apply(get_company_rank)
@@ -88,7 +88,9 @@ def main():
         def sort_section_data(data_df, is_other=False):
             def calc_score(row):
                 val = row['是否头条']
+                # 只有大于0的才视为头条权重
                 return val if val > 0 else (1000 + get_topic_rank(row['话题']))
+            
             data_df['internal_score'] = data_df.apply(calc_score, axis=1)
             if is_other:
                 data_df['co_rank'] = data_df['公司'].apply(lambda x: OTHER_PRIORITY.index(x) if x in OTHER_PRIORITY else 999)
@@ -172,22 +174,59 @@ def main():
         <div id="panel-daily" class="tab-content active">
             {% for d in dates %}
             <div id="date-group-{{d}}" class="date-container" style="display: {{ 'block' if loop.first else 'none' }}">
-                {% if headlines_map[d] %}<div class="headline-section"><h2 class="headline-title">今日重点</h2>
-                {% for hl in headlines_map[d] %}<div class="hl-item"><div class="tag-group"><span class="tag tag-important">{{hl['话题']}}</span><span class="tag">{{hl['公司']}}</span></div>
-                <a href="{{hl['链接']}}" target="_blank" class="hl-title">{{hl['标题']}}</a><div class="hl-content">{{hl['核心内容']}}</div><div class="footer"><span>来源: {{hl['来源']}}</span><a href="{{hl['链接']}}" class="link-btn" target="_blank">阅读原文</a></div></div>{% endfor %}</div>{% endif %}
-                {% for co, items in news_data_map[d].items() %}<div class="company-section"><h2 class="sticky-title">{{co}}</h2>
-                {% for it in items %}<div class="news-item" onclick="this.classList.toggle('open')"><div class="tag-group"><span class="tag tag-important">{{it['话题']}}</span>{% if co == SECONDARY_TITLE or co == '行业新闻' %}<span class="tag tag-domestic">{{it['公司']}}</span>{% endif %}</div>
-                <span class="title-row">{{it['标题']}}</span><div class="content-box">{{it['核心内容']}}<div class="footer"><span>来源: {{it['来源']}}</span><a href="{{it['链接']}}" class="link-btn" target="_blank" onclick="event.stopPropagation();">阅读原文</a></div></div></div>{% endfor %}</div>{% endfor %}
+                {% if headlines_map[d] %}
+                <div class="headline-section">
+                    <h2 class="headline-title">今日重点</h2>
+                    {% for hl in headlines_map[d] %}
+                    <div class="hl-item">
+                        <div class="tag-group">
+                            <span class="tag tag-important">{{hl['话题']}}</span>
+                            <span class="tag">{{hl['公司']}}</span>
+                        </div>
+                        <a href="{{hl['链接']}}" target="_blank" class="hl-title">{{hl['标题']}}</a>
+                        <div class="hl-content">{{hl['核心内容']}}</div>
+                        <div class="footer">
+                            <span>来源: {{hl['来源']}}</span>
+                            <a href="{{hl['链接']}}" class="link-btn" target="_blank">阅读原文</a>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+                
+                {% for co, items in news_data_map[d].items() %}
+                <div class="company-section">
+                    <h2 class="sticky-title">{{co}}</h2>
+                    {% for it in items %}
+                    <div class="news-item" onclick="this.classList.toggle('open')">
+                        <div class="tag-group">
+                            <span class="tag tag-important">{{it['话题']}}</span>
+                            {% if co == SECONDARY_TITLE or co == '行业新闻' %}
+                            <span class="tag tag-domestic">{{it['公司']}}</span>
+                            {% endif %}
+                        </div>
+                        <span class="title-row">{{it['标题']}}</span>
+                        <div class="content-box">
+                            {{it['核心内容']}}
+                            <div class="footer">
+                                <span>来源: {{it['来源']}}</span>
+                                <a href="{{it['链接']}}" class="link-btn" target="_blank" onclick="event.stopPropagation();">阅读原文</a>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endfor %}
             </div>
             {% endfor %}
         </div>
 
         <div id="panel-filter" class="tab-content">
-            <div style="padding:10px 0; display:flex; gap:6px; margin-bottom:15px; background: #fff;">
+            <div style="padding:10px 0; display:flex; gap:6px; margin-bottom:15px; background: #fff; position: sticky; top: 0; z-index: 101;">
                 <select id="f-date" style="flex:1; font-size:11px;"><option value="all">全时间段</option>{% for d in dates %}<option value="{{d}}">{% if '至' in d %}{{ d.split('至')[1].strip() }}{% else %}{{ d }}{% endif %}</option>{% endfor %}</select>
                 <select id="f-co" style="flex:1; font-size:11px;"><option value="all">所有公司</option>{% for c in all_companies %}<option value="{{c}}">{{c}}</option>{% endfor %}</select>
                 <select id="f-topic" style="flex:1; font-size:11px;"><option value="all">所有话题</option>{% for t in all_topics %}<option value="{{t}}">{{t}}</option>{% endfor %}</select>
-                <button onclick="doSearch()" style="background:var(--primary); color:white; border:none; padding:4px 12px; font-size:11px; border-radius:2px;">检索</button>
+                <button onclick="doSearch()" style="background:var(--primary); color:white; border:none; padding:4px 12px; font-size:11px; border-radius:2px; cursor:pointer;">检索</button>
             </div>
             <div id="results"></div>
         </div>
@@ -201,9 +240,11 @@ def main():
             document.getElementById('panel-' + id).classList.add('active');
             document.getElementById('btn-' + id).classList.add('active');
             
-            // 联动显示/隐藏顶部控制条
+            // 关键修复点：控制条显示/隐藏逻辑
             const ctrlBar = document.getElementById('main-control-bar');
-            ctrlBar.style.display = (id === 'filter') ? 'none' : 'flex';
+            if (ctrlBar) {
+                ctrlBar.style.display = (id === 'filter') ? 'none' : 'flex';
+            }
             
             if(id === 'filter') doSearch();
         }
@@ -233,7 +274,10 @@ def main():
                     endLabel = current.getFullYear() + '/' + (current.getMonth() + 1) + '/' + current.getDate() + ' 17:00';
                 }
             }
-            document.getElementById('current-time-label').innerText = startLabel ? "监测周期：" + startLabel + " 至 " + endLabel : "监测周期：" + d;
+            const labelEl = document.getElementById('current-time-label');
+            if (labelEl) {
+                labelEl.innerText = startLabel ? "监测周期：" + startLabel + " 至 " + endLabel : "监测周期：" + d;
+            }
         }
 
         window.onload = () => { 
@@ -242,14 +286,16 @@ def main():
         };
 
         function doSearch() {
-            const d = document.getElementById('f-date').value, c = document.getElementById('f-co').value, t = document.getElementById('f-topic').value;
+            const d = document.getElementById('f-date').value;
+            const c = document.getElementById('f-co').value;
+            const t = document.getElementById('f-topic').value;
             const filtered = rawData.filter(it => (d === 'all' || it['日期'] == d) && (c === 'all' || it['公司'] == c) && (t === 'all' || it['话题'] == t));
             const resDiv = document.getElementById('results');
             resDiv.innerHTML = filtered.length ? '' : '<p style="text-align:center; padding:30px; font-size:11px; color:#999;">无匹配新闻</p>';
             filtered.forEach(it => {
                 const item = document.createElement('div'); item.className = 'news-item'; item.onclick = () => item.classList.toggle('open');
                 const showD = it['日期'].includes('至') ? it['日期'].split('至')[1].strip() : it['日期'];
-                item.innerHTML = `<div class="tag-group"><span class="tag tag-important">${it['话题']}</span><span class="tag">${showD}</span><span class="tag">${it['公司']}</span></div><span class="title-row">${it['标题']}</span><div class="content-box">${it['核心内容']}<div class="footer"><span>来源: ${it['来源']}</span><a href="${it['链接']}" class="link-btn" target="_blank">阅读原文</a></div></div>`;
+                item.innerHTML = `<div class="tag-group"><span class="tag tag-important">${it['话题']}</span><span class="tag">${showD}</span><span class="tag">${it['公司']}</span></div><span class="title-row">${it['标题']}</span><div class="content-box">${it['核心内容']}<div class="footer"><span>来源: ${it['来源']}</span><a href="${it['链接']}" class="link-btn" target="_blank" onclick="event.stopPropagation();">阅读原文</a></div></div>`;
                 resDiv.appendChild(item);
             });
         }
