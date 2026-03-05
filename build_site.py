@@ -39,7 +39,9 @@ def get_company_rank(c_val):
     return 999
 
 def get_topic_rank(t_val):
-    return TOPIC_ORDER.index(t_val) if t_val in TOPIC_ORDER else 99
+    # 如果是多个话题，取第一个话题的权重进行排序
+    main_topic = t_val[0] if isinstance(t_val, list) else t_val
+    return TOPIC_ORDER.index(main_topic) if main_topic in TOPIC_ORDER else 99
 
 def main():
     # ==========================================
@@ -56,12 +58,21 @@ def main():
     name_map = {'字节': '字节跳动', '阿里': '阿里巴巴', 'Baidu': '百度', 'minimax': 'MiniMax', '智谱AI': '智谱', 'OpenAI ': 'OpenAI'}
     df['公司'] = df['公司'].replace(name_map)
     
-    # 核心：确保“是否头条”列是干净的数字
     df['是否头条'] = pd.to_numeric(df['是否头条'], errors='coerce').fillna(0).astype(int)
     df = df.fillna("")
 
+    # --- 新增：话题拆分处理 ---
+    # 将 "话题1、话题2" 转换为 ["话题1", "话题2"]
+    df['话题_list'] = df['话题'].apply(lambda x: [i.strip() for i in str(x).replace(' ', '').split('、')] if x else [])
+
     all_unique_companies = sorted(df['公司'].unique().tolist(), key=lambda x: x.encode('gbk') if isinstance(x, str) else x)
-    all_unique_topics = sorted(df['话题'].unique().tolist())
+    
+    # 获取所有不重复的单个话题用于筛选器
+    all_individual_topics = set()
+    for t_list in df['话题_list']:
+        all_individual_topics.update(t_list)
+    all_unique_topics = sorted(list(all_individual_topics))
+
     all_dates = df['日期'].unique().tolist()
     all_dates.sort(key=parse_date_for_sort, reverse=True)
 
@@ -74,11 +85,11 @@ def main():
     for date in all_dates:
         day_df = df[df['日期'] == date].copy()
         
-        # A. 今日重点排序：数字升序 > 公司权重 > 话题权重
+        # A. 今日重点排序
         headline_df = day_df[day_df['是否头条'] > 0].copy()
         if not headline_df.empty:
             headline_df['c_rank'] = headline_df['公司'].apply(get_company_rank)
-            headline_df['t_rank'] = headline_df['话题'].apply(get_topic_rank)
+            headline_df['t_rank'] = headline_df['话题_list'].apply(get_topic_rank)
             headlines_map[date] = headline_df.sort_values(by=['是否头条', 'c_rank', 't_rank']).to_dict('records')
         else:
             headlines_map[date] = []
@@ -88,8 +99,7 @@ def main():
         def sort_section_data(data_df, is_other=False):
             def calc_score(row):
                 val = row['是否头条']
-                # 只有大于0的才视为头条权重
-                return val if val > 0 else (1000 + get_topic_rank(row['话题']))
+                return val if val > 0 else (1000 + get_topic_rank(row['话题_list']))
             
             data_df['internal_score'] = data_df.apply(calc_score, axis=1)
             if is_other:
@@ -107,6 +117,7 @@ def main():
         other_df = day_df[~day_df['公司'].isin(CORE_COMPANIES + SECONDARY_COMPANIES)].copy()
         if not other_df.empty: news_data_map[date]['行业新闻'] = sort_section_data(other_df, is_other=True)
 
+    # 为了让 JS 能处理，我们将包含 list 的 df 转换为 dict
     final_json_str = json.dumps(df.to_dict('records'), ensure_ascii=False)
 
     # ==========================================
@@ -141,12 +152,12 @@ def main():
             .hl-title { font-size: 15px; font-weight: 700; color: #1e293b; text-decoration: none; display: block; margin-bottom: 4px; font-family: 'Noto Serif SC', serif; line-height: 1.4; }
             .hl-content { font-size: 12px; color: #475569; line-height: 1.6; margin: 6px 0; text-align: justify; }
             .news-item { padding: 10px 4px; border-bottom: 1px solid #f1f5f9; cursor: pointer; }
-            .tag-group { margin-bottom: 4px; display: flex; gap: 6px; align-items: center; }
+            .tag-group { margin-bottom: 4px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
             .tag { font-size: 9px; padding: 1px 5px; font-weight: 600; background: #f1f5f9; color: #64748b; border-radius: 2px; }
             .tag-important { background: #e0f2fe; color: #0369a1; }
             .tag-domestic { background: #fef3c7; color: #b45309; }
             .title-row { font-size: 14px; font-weight: 600; color: #334155; display: flex; justify-content: space-between; align-items: center; }
-            .title-row::after { content: '+'; font-size: 14px; color: #cbd5e1; }
+            .title-row::after { content: '+'; font-size: 14px; color: #cbd5e1; margin-left: 8px; }
             .news-item.open .title-row::after { content: '−'; color: var(--primary); }
             .content-box { display: none; padding: 8px 0; font-size: 12px; color: #475569; line-height: 1.7; text-align: justify; }
             .news-item.open .content-box { display: block; }
@@ -180,7 +191,9 @@ def main():
                     {% for hl in headlines_map[d] %}
                     <div class="hl-item">
                         <div class="tag-group">
-                            <span class="tag tag-important">{{hl['话题']}}</span>
+                            {% for tag in hl['话题_list'] %}
+                            <span class="tag tag-important">{{tag}}</span>
+                            {% endfor %}
                             <span class="tag">{{hl['公司']}}</span>
                         </div>
                         <a href="{{hl['链接']}}" target="_blank" class="hl-title">{{hl['标题']}}</a>
@@ -200,7 +213,9 @@ def main():
                     {% for it in items %}
                     <div class="news-item" onclick="this.classList.toggle('open')">
                         <div class="tag-group">
-                            <span class="tag tag-important">{{it['话题']}}</span>
+                            {% for tag in it['话题_list'] %}
+                            <span class="tag tag-important">{{tag}}</span>
+                            {% endfor %}
                             {% if co == SECONDARY_TITLE or co == '行业新闻' %}
                             <span class="tag tag-domestic">{{it['公司']}}</span>
                             {% endif %}
@@ -240,7 +255,6 @@ def main():
             document.getElementById('panel-' + id).classList.add('active');
             document.getElementById('btn-' + id).classList.add('active');
             
-            // 关键修复点：控制条显示/隐藏逻辑
             const ctrlBar = document.getElementById('main-control-bar');
             if (ctrlBar) {
                 ctrlBar.style.display = (id === 'filter') ? 'none' : 'flex';
@@ -289,13 +303,38 @@ def main():
             const d = document.getElementById('f-date').value;
             const c = document.getElementById('f-co').value;
             const t = document.getElementById('f-topic').value;
-            const filtered = rawData.filter(it => (d === 'all' || it['日期'] == d) && (c === 'all' || it['公司'] == c) && (t === 'all' || it['话题'] == t));
+            
+            // 改进的检索逻辑：检查话题列表中是否包含所选话题
+            const filtered = rawData.filter(it => {
+                const dateMatch = (d === 'all' || it['日期'] == d);
+                const coMatch = (c === 'all' || it['公司'] == c);
+                const topicMatch = (t === 'all' || it['话题_list'].includes(t));
+                return dateMatch && coMatch && topicMatch;
+            });
+
             const resDiv = document.getElementById('results');
             resDiv.innerHTML = filtered.length ? '' : '<p style="text-align:center; padding:30px; font-size:11px; color:#999;">无匹配新闻</p>';
+            
             filtered.forEach(it => {
                 const item = document.createElement('div'); item.className = 'news-item'; item.onclick = () => item.classList.toggle('open');
                 const showD = it['日期'].includes('至') ? it['日期'].split('至')[1].strip() : it['日期'];
-                item.innerHTML = `<div class="tag-group"><span class="tag tag-important">${it['话题']}</span><span class="tag">${showD}</span><span class="tag">${it['公司']}</span></div><span class="title-row">${it['标题']}</span><div class="content-box">${it['核心内容']}<div class="footer"><span>来源: ${it['来源']}</span><a href="${it['链接']}" class="link-btn" target="_blank" onclick="event.stopPropagation();">阅读原文</a></div></div>`;
+                
+                // 动态生成标签 HTML
+                let tagsHtml = it['话题_list'].map(tag => `<span class="tag tag-important">${tag}</span>`).join('');
+                
+                item.innerHTML = `
+                    <div class="tag-group">
+                        ${tagsHtml}
+                        <span class="tag">${it['公司']}</span>
+                    </div>
+                    <span class="title-row">${it['标题']}</span>
+                    <div class="content-box">
+                        ${it['核心内容']}
+                        <div class="footer">
+                            <span>来源: ${it['来源']}</span>
+                            <a href="${it['链接']}" class="link-btn" target="_blank" onclick="event.stopPropagation();">阅读原文</a>
+                        </div>
+                    </div>`;
                 resDiv.appendChild(item);
             });
         }
