@@ -8311,13 +8311,14 @@
             
             filtered.forEach(it => {
                 const item = document.createElement('div'); item.className = 'news-item'; item.onclick = () => item.classList.toggle('open');
-                const showD = it['日期'].includes('至') ? it['日期'].split('至')[1].strip() : it['日期'];
+                const showD = it['日期'].includes('至') ? it['日期'].split('至')[1].trim() : it['日期'].trim();
                 
                 let tagsHtml = it['话题_list'].map(tag => `<span class="tag tag-important">${tag}</span>`).join('');
                 
                 item.innerHTML = `
                     <div class="tag-group">
                         ${tagsHtml}
+                        <span class="tag">${showD}</span>
                         <span class="tag">${it['公司']}</span>
                     </div>
                     <span class="title-row">${it['标题']}</span>
