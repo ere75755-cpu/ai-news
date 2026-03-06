@@ -41,14 +41,10 @@ def get_company_rank(c_val):
     return 999
 
 def get_topic_rank(t_val):
-    # 如果是多个话题，取第一个话题的权重进行排序
     main_topic = t_val[0] if isinstance(t_val, list) and len(t_val) > 0 else t_val
     return TOPIC_ORDER.index(main_topic) if main_topic in TOPIC_ORDER else 99
 
 def main():
-    # ==========================================
-    # 2. 数据读取与预处理
-    # ==========================================
     try:
         df = pd.read_csv(SHEET_URL)
     except Exception as e:
@@ -75,16 +71,12 @@ def main():
     all_dates = df['日期'].unique().tolist()
     all_dates.sort(key=parse_date_for_sort, reverse=True)
 
-    # ==========================================
-    # 3. 核心分发逻辑
-    # ==========================================
     news_data_map = {}
     headlines_map = {}
 
     for date in all_dates:
         day_df = df[df['日期'] == date].copy()
         
-        # A. 今日重点排序
         headline_df = day_df[day_df['是否头条'] > 0].copy()
         if not headline_df.empty:
             headline_df['c_rank'] = headline_df['公司'].apply(get_company_rank)
@@ -96,47 +88,34 @@ def main():
         news_data_map[date] = {}
         
         def sort_section_data(data_df, is_other=False):
-            # 内部排序逻辑：
-            # 1. 首先按公司排序，确保同一公司在一起
-            # 2. 其次按头条状态 (val > 0 为头条)
-            # 3. 最后按话题优先级
             def calc_company_score(c_name):
                 if is_other:
                     return OTHER_PRIORITY.index(c_name) if c_name in OTHER_PRIORITY else 999
                 return get_company_rank(c_name)
 
             def calc_headline_score(row):
-                # 数值越小越靠前。非头条给一个大值。
                 return row['是否头条'] if row['是否头条'] > 0 else 999
 
             data_df['co_rank'] = data_df['公司'].apply(calc_company_score)
             data_df['hl_rank'] = data_df.apply(calc_headline_score, axis=1)
             data_df['tp_rank'] = data_df['话题_list'].apply(get_topic_rank)
-            
-            # 核心排序指令：公司相同在一起 -> 头条数字小的优先 -> 话题优先级
             return data_df.sort_values(by=['co_rank', 'hl_rank', 'tp_rank']).to_dict('records')
 
-        # 1. 核心大厂部分
         for company in CORE_COMPANIES:
             comp_df = day_df[day_df['公司'] == company].copy()
             if not comp_df.empty: 
                 news_data_map[date][company] = sort_section_data(comp_df)
         
-        # 2. 其余重点关注公司部分 (按公司聚合)
         sec_df = day_df[day_df['公司'].isin(SECONDARY_COMPANIES)].copy()
         if not sec_df.empty: 
             news_data_map[date][SECONDARY_TITLE] = sort_section_data(sec_df)
         
-        # 3. 行业新闻部分 (按公司聚合)
         other_df = day_df[~day_df['公司'].isin(CORE_COMPANIES + SECONDARY_COMPANIES)].copy()
         if not other_df.empty: 
             news_data_map[date]['行业新闻'] = sort_section_data(other_df, is_other=True)
 
     final_json_str = json.dumps(df.to_dict('records'), ensure_ascii=False)
 
-    # ==========================================
-    # 4. HTML 模板
-    # ==========================================
     template_str = """
     <!DOCTYPE html>
     <html lang="zh-CN">
@@ -330,13 +309,14 @@ def main():
             
             filtered.forEach(it => {
                 const item = document.createElement('div'); item.className = 'news-item'; item.onclick = () => item.classList.toggle('open');
-                const showD = it['日期'].includes('至') ? it['日期'].split('至')[1].strip() : it['日期'];
+                const showD = it['日期'].includes('至') ? it['日期'].split('至')[1].trim() : it['日期'].trim();
                 
                 let tagsHtml = it['话题_list'].map(tag => `<span class="tag tag-important">${tag}</span>`).join('');
                 
                 item.innerHTML = `
                     <div class="tag-group">
                         ${tagsHtml}
+                        <span class="tag">${showD}</span>
                         <span class="tag">${it['公司']}</span>
                     </div>
                     <span class="title-row">${it['标题']}</span>
@@ -355,7 +335,6 @@ def main():
     </html>
     """
 
-    # 4.1 输出
     html = Template(template_str).render(
         dates=all_dates, 
         news_data_map=news_data_map, 
