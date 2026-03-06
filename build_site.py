@@ -14,7 +14,9 @@ MY_DOMAIN = "www.aipulse.run"
 CORE_COMPANIES = ['OpenAI', 'Google', 'Anthropic', 'Meta', '字节跳动', '阿里巴巴', '腾讯', '百度']
 SECONDARY_COMPANIES = ['Kimi', 'MiniMax', '智谱', 'xAI', '可灵', 'DeepSeek', 'Apple', '美团']
 SECONDARY_TITLE = "其余重点关注公司"
-TOPIC_ORDER = ['数据洞察', '技术迭代', '产品动态', '商业动态', '春节活动']
+
+# 更新后的优先级：头条 > 技术迭代 > 产品动态 > 数据洞察 > 商业动态 > 春节活动
+TOPIC_ORDER = ['技术迭代', '产品动态', '数据洞察', '商业动态', '春节活动']
 
 OTHER_PRIORITY = [
     'Perplexity', 'Character.ai', 'Midjourney', 'Pika', 'Runway', 
@@ -40,7 +42,7 @@ def get_company_rank(c_val):
 
 def get_topic_rank(t_val):
     # 如果是多个话题，取第一个话题的权重进行排序
-    main_topic = t_val[0] if isinstance(t_val, list) else t_val
+    main_topic = t_val[0] if isinstance(t_val, list) and len(t_val) > 0 else t_val
     return TOPIC_ORDER.index(main_topic) if main_topic in TOPIC_ORDER else 99
 
 def main():
@@ -61,13 +63,10 @@ def main():
     df['是否头条'] = pd.to_numeric(df['是否头条'], errors='coerce').fillna(0).astype(int)
     df = df.fillna("")
 
-    # --- 新增：话题拆分处理 ---
-    # 将 "话题1、话题2" 转换为 ["话题1", "话题2"]
     df['话题_list'] = df['话题'].apply(lambda x: [i.strip() for i in str(x).replace(' ', '').split('、')] if x else [])
 
     all_unique_companies = sorted(df['公司'].unique().tolist(), key=lambda x: x.encode('gbk') if isinstance(x, str) else x)
     
-    # 获取所有不重复的单个话题用于筛选器
     all_individual_topics = set()
     for t_list in df['话题_list']:
         all_individual_topics.update(t_list)
@@ -97,27 +96,42 @@ def main():
         news_data_map[date] = {}
         
         def sort_section_data(data_df, is_other=False):
-            def calc_score(row):
-                val = row['是否头条']
-                return val if val > 0 else (1000 + get_topic_rank(row['话题_list']))
-            
-            data_df['internal_score'] = data_df.apply(calc_score, axis=1)
-            if is_other:
-                data_df['co_rank'] = data_df['公司'].apply(lambda x: OTHER_PRIORITY.index(x) if x in OTHER_PRIORITY else 999)
-                return data_df.sort_values(by=['internal_score', 'co_rank']).to_dict('records')
-            return data_df.sort_values(by='internal_score').to_dict('records')
+            # 内部排序逻辑：
+            # 1. 首先按公司排序，确保同一公司在一起
+            # 2. 其次按头条状态 (val > 0 为头条)
+            # 3. 最后按话题优先级
+            def calc_company_score(c_name):
+                if is_other:
+                    return OTHER_PRIORITY.index(c_name) if c_name in OTHER_PRIORITY else 999
+                return get_company_rank(c_name)
 
+            def calc_headline_score(row):
+                # 数值越小越靠前。非头条给一个大值。
+                return row['是否头条'] if row['是否头条'] > 0 else 999
+
+            data_df['co_rank'] = data_df['公司'].apply(calc_company_score)
+            data_df['hl_rank'] = data_df.apply(calc_headline_score, axis=1)
+            data_df['tp_rank'] = data_df['话题_list'].apply(get_topic_rank)
+            
+            # 核心排序指令：公司相同在一起 -> 头条数字小的优先 -> 话题优先级
+            return data_df.sort_values(by=['co_rank', 'hl_rank', 'tp_rank']).to_dict('records')
+
+        # 1. 核心大厂部分
         for company in CORE_COMPANIES:
             comp_df = day_df[day_df['公司'] == company].copy()
-            if not comp_df.empty: news_data_map[date][company] = sort_section_data(comp_df)
+            if not comp_df.empty: 
+                news_data_map[date][company] = sort_section_data(comp_df)
         
+        # 2. 其余重点关注公司部分 (按公司聚合)
         sec_df = day_df[day_df['公司'].isin(SECONDARY_COMPANIES)].copy()
-        if not sec_df.empty: news_data_map[date][SECONDARY_TITLE] = sort_section_data(sec_df)
+        if not sec_df.empty: 
+            news_data_map[date][SECONDARY_TITLE] = sort_section_data(sec_df)
         
+        # 3. 行业新闻部分 (按公司聚合)
         other_df = day_df[~day_df['公司'].isin(CORE_COMPANIES + SECONDARY_COMPANIES)].copy()
-        if not other_df.empty: news_data_map[date]['行业新闻'] = sort_section_data(other_df, is_other=True)
+        if not other_df.empty: 
+            news_data_map[date]['行业新闻'] = sort_section_data(other_df, is_other=True)
 
-    # 为了让 JS 能处理，我们将包含 list 的 df 转换为 dict
     final_json_str = json.dumps(df.to_dict('records'), ensure_ascii=False)
 
     # ==========================================
@@ -304,7 +318,6 @@ def main():
             const c = document.getElementById('f-co').value;
             const t = document.getElementById('f-topic').value;
             
-            // 改进的检索逻辑：检查话题列表中是否包含所选话题
             const filtered = rawData.filter(it => {
                 const dateMatch = (d === 'all' || it['日期'] == d);
                 const coMatch = (c === 'all' || it['公司'] == c);
@@ -319,7 +332,6 @@ def main():
                 const item = document.createElement('div'); item.className = 'news-item'; item.onclick = () => item.classList.toggle('open');
                 const showD = it['日期'].includes('至') ? it['日期'].split('至')[1].strip() : it['日期'];
                 
-                // 动态生成标签 HTML
                 let tagsHtml = it['话题_list'].map(tag => `<span class="tag tag-important">${tag}</span>`).join('');
                 
                 item.innerHTML = `
