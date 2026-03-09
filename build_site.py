@@ -24,7 +24,7 @@ OTHER_PRIORITY = [
     'Microsoft', 'Apple', '英伟达', 'AMD', 'Intel', 'TSMC', 'Samsung', 'Amazon',
     'Tesla', 'Notion', 'Canva', 'Adobe', 'GitHub', 'Arc', 'Cursor', 'Groq',
     '特斯拉', '波士顿动力', '宇树', '智元', '银河', '星海图', 'Fiture', 'Figure', 
-    'Sanctuary AI', '1X Technologies', 'Agility Robotics'
+    'Sanctuary AI', '1X Technologies', 'Agility Robotics','森森'
 ]
 
 # --- 辅助函数 ---
