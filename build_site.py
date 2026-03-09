@@ -20,8 +20,8 @@ TOPIC_ORDER = ['技术迭代', '产品动态', '数据洞察', '商业动态', '
 
 OTHER_PRIORITY = [
     'Perplexity', 'Character.ai', 'Midjourney', 'Pika', 'Runway', 
-    'Suno', 'Luma', 'Grok', 'Mistral', 'Cohere', 'Hugging Face', 'OpenClaw',
-    'Microsoft', 'Apple', 'NVIDIA', 'AMD', 'Intel', 'TSMC', 'Samsung', 'Amazon',
+    'Suno', 'Luma', 'Grok', 'Mistral', 'Cohere', 'OpenClaw',
+    'Microsoft', 'Apple', '英伟达', 'AMD', 'Intel', 'TSMC', 'Samsung', 'Amazon',
     'Tesla', 'Notion', 'Canva', 'Adobe', 'GitHub', 'Arc', 'Cursor', 'Groq',
     '特斯拉', '波士顿动力', '宇树', '智元', '银河', '星海图', 'Fiture', 'Figure', 
     'Sanctuary AI', '1X Technologies', 'Agility Robotics'
