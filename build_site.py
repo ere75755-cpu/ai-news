@@ -348,5 +348,12 @@ def main():
     with open("index.html", "w", encoding="utf-8") as f: f.write(html)
     with open("CNAME", "w") as f: f.write(MY_DOMAIN)
 
+    # --- 新增：微信申诉验证文件 ---
+    verify_filename = "9e6e1fc6e963e82b5025e7569958c4bb.txt"
+    verify_content = "9228ad55ba9d00917e9f086a3830b550f27e545c"
+    with open(verify_filename, "w", encoding="utf-8") as f:
+        f.write(verify_content)
+    # --------------------------
+
 if __name__ == "__main__":
     main()
