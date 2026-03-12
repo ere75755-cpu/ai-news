@@ -41,14 +41,11 @@ def get_company_rank(c_val):
     return 999
 
 def get_topic_rank(t_val):
-    # 如果是多个话题，取第一个话题的权重进行排序
     main_topic = t_val[0] if isinstance(t_val, list) and len(t_val) > 0 else t_val
     return TOPIC_ORDER.index(main_topic) if main_topic in TOPIC_ORDER else 99
 
 def main():
-    # ==========================================
     # 2. 数据读取与预处理
-    # ==========================================
     try:
         df = pd.read_csv(SHEET_URL)
     except Exception as e:
@@ -59,15 +56,11 @@ def main():
     df.columns = [c.strip() for c in df.columns]
     name_map = {'字节': '字节跳动', '阿里': '阿里巴巴', 'Baidu': '百度', 'minimax': 'MiniMax', '智谱AI': '智谱', 'OpenAI ': 'OpenAI'}
     df['公司'] = df['公司'].replace(name_map)
-    
     df['是否头条'] = pd.to_numeric(df['是否头条'], errors='coerce').fillna(0).astype(int)
     df = df.fillna("")
-
-    # 话题拆分处理
     df['话题_list'] = df['话题'].apply(lambda x: [i.strip() for i in str(x).replace(' ', '').split('、')] if x else [])
 
     all_unique_companies = sorted(df['公司'].unique().tolist(), key=lambda x: x.encode('gbk') if isinstance(x, str) else x)
-    
     all_individual_topics = set()
     for t_list in df['话题_list']:
         all_individual_topics.update(t_list)
@@ -76,16 +69,12 @@ def main():
     all_dates = df['日期'].unique().tolist()
     all_dates.sort(key=parse_date_for_sort, reverse=True)
 
-    # ==========================================
     # 3. 核心分发逻辑
-    # ==========================================
     news_data_map = {}
     headlines_map = {}
 
     for date in all_dates:
         day_df = df[df['日期'] == date].copy()
-        
-        # 今日重点排序
         headline_df = day_df[day_df['是否头条'] > 0].copy()
         if not headline_df.empty:
             headline_df['c_rank'] = headline_df['公司'].apply(get_company_rank)
@@ -95,13 +84,11 @@ def main():
             headlines_map[date] = []
 
         news_data_map[date] = {}
-        
         def sort_section_data(data_df, is_other=False):
             def calc_company_internal_score(c_name):
                 if is_other:
                     return OTHER_PRIORITY.index(c_name) if c_name in OTHER_PRIORITY else 999
                 return get_company_rank(c_name)
-
             def calc_item_rank_score(row):
                 val = row['是否头条']
                 t_idx = get_topic_rank(row['话题_list'])
@@ -114,17 +101,15 @@ def main():
         for company in CORE_COMPANIES:
             comp_df = day_df[day_df['公司'] == company].copy()
             if not comp_df.empty: news_data_map[date][company] = sort_section_data(comp_df)
-        
         sec_df = day_df[day_df['公司'].isin(SECONDARY_COMPANIES)].copy()
         if not sec_df.empty: news_data_map[date][SECONDARY_TITLE] = sort_section_data(sec_df)
-        
         other_df = day_df[~day_df['公司'].isin(CORE_COMPANIES + SECONDARY_COMPANIES)].copy()
         if not other_df.empty: news_data_map[date]['行业新闻'] = sort_section_data(other_df, is_other=True)
 
     final_json_str = json.dumps(df.to_dict('records'), ensure_ascii=False)
 
     # ==========================================
-    # 4. HTML 模板 (包含详尽介绍与分享卡片配置)
+    # 4. HTML 模板
     # ==========================================
     template_str = """
     <!DOCTYPE html>
@@ -135,13 +120,13 @@ def main():
         <title>全球 AI 核心动态内参</title>
         
         <meta name="description" content="AI Pulse 深度内参：每日追踪 OpenAI、Google、字节跳动等全球顶级 AI 大厂动态。为您过滤噪音，提供技术迭代、产品发布及商业布局的高价值情报。">
-        <meta name="keywords" content="AI, 人工智能, 大模型, OpenAI, 技术内参, 行业趋势, 科技新闻">
-        
         <meta property="og:type" content="website">
         <meta property="og:url" content="https://www.aipulse.run/">
         <meta property="og:title" content="全球 AI 核心动态内参 | 每日情报更新">
         <meta property="og:description" content="深度追踪主流 AI 大厂与实验室动态，涵盖技术迭代、商业布局及市场洞察，专业人士的 AI 每日必读。">
-        <meta property="og:image" content="https://www.aipulse.run/logo.png">
+        
+        <meta property="og:image" content="https://www.aipulse.run/logo.jpg?v=2026">
+        <link rel="shortcut icon" href="https://www.aipulse.run/logo.jpg">
         <meta name="renderer" content="webkit">
 
         <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@700&display=swap" rel="stylesheet">
@@ -327,7 +312,7 @@ def main():
     </html>
     """
 
-    # 4.1 输出
+    # 4.1 输出生成
     html = Template(template_str).render(
         dates=all_dates, 
         news_data_map=news_data_map, 
@@ -341,7 +326,7 @@ def main():
     with open("index.html", "w", encoding="utf-8") as f: f.write(html)
     with open("CNAME", "w") as f: f.write(MY_DOMAIN)
 
-    # --- 新增：微信申诉验证文件 ---
+    # 微信申诉验证文件
     verify_filename = "9e6e1fc6e963e82b5025e7569958c4bb.txt"
     verify_content = "9228ad55ba9d00917e9f086a3830b550f27e545c"
     with open(verify_filename, "w", encoding="utf-8") as f:
