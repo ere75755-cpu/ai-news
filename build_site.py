@@ -16,7 +16,7 @@ SECONDARY_COMPANIES = ['Kimi', 'MiniMax', '智谱', 'xAI', '可灵', 'DeepSeek',
 SECONDARY_TITLE = "其余重点关注公司"
 
 # 更新后的优先级：头条 > 技术迭代 > 产品动态 > 数据洞察 > 商业动态 > 春节活动
-TOPIC_ORDER = ['技术迭代', '产品动态', '数据洞察', '商业动态', '春节活动']
+TOPIC_ORDER = ['技术迭代', '产品动态', '数据洞察', '行业洞察', '商业动态', '运营活动', '春节活动']
 
 OTHER_PRIORITY = [
     'Perplexity', 'Character.ai', 'Midjourney', 'Pika', 'Runway', 
