@@ -58,7 +58,17 @@ def main():
     df['公司'] = df['公司'].replace(name_map)
     df['是否头条'] = pd.to_numeric(df['是否头条'], errors='coerce').fillna(0).astype(int)
     df = df.fillna("")
+    
+    # 话题拆分处理
     df['话题_list'] = df['话题'].apply(lambda x: [i.strip() for i in str(x).replace(' ', '').split('、')] if x else [])
+
+    # --- 核心新增：公司拆分逻辑 ---
+    # 1. 将 "OpenAI、Google" 转换为列表 ["OpenAI", "Google"]
+    df['公司_list'] = df['公司'].apply(lambda x: [i.strip() for i in str(x).split('、')] if x else [])
+    
+    # 2. 爆炸处理：一条新闻如果有N个公司，就变成N行，每行对应一个公司
+    df_exploded = df.explode('公司_list')
+    # ----------------------------
 
     all_unique_companies = sorted(df['公司'].unique().tolist(), key=lambda x: x.encode('gbk') if isinstance(x, str) else x)
     all_individual_topics = set()
@@ -69,13 +79,13 @@ def main():
     all_dates = df['日期'].unique().tolist()
     all_dates.sort(key=parse_date_for_sort, reverse=True)
 
-    # 3. 核心分发逻辑
     news_data_map = {}
     headlines_map = {}
 
     for date in all_dates:
-        day_df = df[df['日期'] == date].copy()
-        headline_df = day_df[day_df['是否头条'] > 0].copy()
+        # 头条仍使用原始df（避免同一条头条在顶部重复显示多次，除非您希望它重复）
+        day_df_orig = df[df['日期'] == date].copy()
+        headline_df = day_df_orig[day_df_orig['是否头条'] > 0].copy()
         if not headline_df.empty:
             headline_df['c_rank'] = headline_df['公司'].apply(get_company_rank)
             headline_df['t_rank'] = headline_df['话题_list'].apply(get_topic_rank)
@@ -83,7 +93,10 @@ def main():
         else:
             headlines_map[date] = []
 
+        # 分板块展示使用爆炸后的数据
+        day_df_exp = df_exploded[df_exploded['日期'] == date].copy()
         news_data_map[date] = {}
+
         def sort_section_data(data_df, is_other=False):
             def calc_company_internal_score(c_name):
                 if is_other:
@@ -94,16 +107,22 @@ def main():
                 t_idx = get_topic_rank(row['话题_list'])
                 return val if val > 0 else (1000 + t_idx)
 
-            data_df['co_group_rank'] = data_df['公司'].apply(calc_company_internal_score)
+            # 这里的排序基于爆炸后的单体公司列：公司_list
+            data_df['co_group_rank'] = data_df['公司_list'].apply(calc_company_internal_score)
             data_df['item_internal_rank'] = data_df.apply(calc_item_rank_score, axis=1)
             return data_df.sort_values(by=['co_group_rank', 'item_internal_rank']).to_dict('records')
 
+        # 核心大厂
         for company in CORE_COMPANIES:
-            comp_df = day_df[day_df['公司'] == company].copy()
+            comp_df = day_df_exp[day_df_exp['公司_list'] == company].copy()
             if not comp_df.empty: news_data_map[date][company] = sort_section_data(comp_df)
-        sec_df = day_df[day_df['公司'].isin(SECONDARY_COMPANIES)].copy()
+        
+        # 其余重点关注公司
+        sec_df = day_df_exp[day_df_exp['公司_list'].isin(SECONDARY_COMPANIES)].copy()
         if not sec_df.empty: news_data_map[date][SECONDARY_TITLE] = sort_section_data(sec_df)
-        other_df = day_df[~day_df['公司'].isin(CORE_COMPANIES + SECONDARY_COMPANIES)].copy()
+        
+        # 行业新闻
+        other_df = day_df_exp[~day_df_exp['公司_list'].isin(CORE_COMPANIES + SECONDARY_COMPANIES)].copy()
         if not other_df.empty: news_data_map[date]['行业新闻'] = sort_section_data(other_df, is_other=True)
 
     final_json_str = json.dumps(df.to_dict('records'), ensure_ascii=False)
@@ -118,17 +137,14 @@ def main():
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
         <title>全球 AI 核心动态内参</title>
-        
         <meta name="description" content="AI Pulse 深度内参：每日追踪 OpenAI、Google、字节跳动等全球顶级 AI 大厂动态。为您过滤噪音，提供技术迭代、产品发布及商业布局的高价值情报。">
         <meta property="og:type" content="website">
         <meta property="og:url" content="https://www.aipulse.run/">
         <meta property="og:title" content="全球 AI 核心动态内参 | 每日情报更新">
         <meta property="og:description" content="深度追踪主流 AI 大厂与实验室动态，涵盖技术迭代、商业布局及市场洞察，专业人士的 AI 每日必读。">
-        
         <meta property="og:image" content="https://www.aipulse.run/logo.jpg?v=2026">
         <link rel="shortcut icon" href="https://www.aipulse.run/logo.jpg">
         <meta name="renderer" content="webkit">
-
         <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@700&display=swap" rel="stylesheet">
         <style>
             :root { --primary: #1a73e8; --header-bg: #475569; --bg: #ffffff; --text: #334155; --border: #f1f5f9; --sub-bg: #f8fafc; }
@@ -171,70 +187,24 @@ def main():
             <div class="tab-btn active" id="btn-daily" onclick="switchTab('daily')">每日综述</div>
             <div class="tab-btn" id="btn-filter" onclick="switchTab('filter')">历史检索</div>
         </div>
-        
         <div id="main-control-bar" class="control-bar">
             <div id="current-time-label" class="time-label">监测周期：加载中...</div>
             <select id="dateSelect" class="date-picker" onchange="changeDate(this.value)">
-                {% for d in dates %}
-                <option value="{{d}}">{% if '至' in d %}{{ d.split('至')[1].strip() }}{% else %}{{ d }}{% endif %}</option>
-                {% endfor %}
+                {% for d in dates %}<option value="{{d}}">{% if '至' in d %}{{ d.split('至')[1].strip() }}{% else %}{{ d }}{% endif %}</option>{% endfor %}
             </select>
         </div>
-
         <div id="panel-daily" class="tab-content active">
             {% for d in dates %}
             <div id="date-group-{{d}}" class="date-container" style="display: {{ 'block' if loop.first else 'none' }}">
-                {% if headlines_map[d] %}
-                <div class="headline-section">
-                    <h2 class="headline-title">今日重点</h2>
-                    {% for hl in headlines_map[d] %}
-                    <div class="hl-item">
-                        <div class="tag-group">
-                            {% for tag in hl['话题_list'] %}
-                            <span class="tag tag-important">{{tag}}</span>
-                            {% endfor %}
-                            <span class="tag">{{hl['公司']}}</span>
-                        </div>
-                        <a href="{{hl['链接']}}" target="_blank" class="hl-title">{{hl['标题']}}</a>
-                        <div class="hl-content">{{hl['核心内容']}}</div>
-                        <div class="footer">
-                            <span>来源: {{hl['来源']}}</span>
-                            <a href="{{hl['链接']}}" class="link-btn" target="_blank">阅读原文</a>
-                        </div>
-                    </div>
-                    {% endfor %}
-                </div>
-                {% endif %}
-                
-                {% for co, items in news_data_map[d].items() %}
-                <div class="company-section">
-                    <h2 class="sticky-title">{{co}}</h2>
-                    {% for it in items %}
-                    <div class="news-item" onclick="this.classList.toggle('open')">
-                        <div class="tag-group">
-                            {% for tag in it['话题_list'] %}
-                            <span class="tag tag-important">{{tag}}</span>
-                            {% endfor %}
-                            {% if co == SECONDARY_TITLE or co == '行业新闻' %}
-                            <span class="tag tag-domestic">{{it['公司']}}</span>
-                            {% endif %}
-                        </div>
-                        <span class="title-row">{{it['标题']}}</span>
-                        <div class="content-box">
-                            {{it['核心内容']}}
-                            <div class="footer">
-                                <span>来源: {{it['来源']}}</span>
-                                <a href="{{it['链接']}}" class="link-btn" target="_blank" onclick="event.stopPropagation();">阅读原文</a>
-                            </div>
-                        </div>
-                    </div>
-                    {% endfor %}
-                </div>
-                {% endfor %}
+                {% if headlines_map[d] %}<div class="headline-section"><h2 class="headline-title">今日重点</h2>
+                {% for hl in headlines_map[d] %}<div class="hl-item"><div class="tag-group">{% for tag in hl['话题_list'] %}<span class="tag tag-important">{{tag}}</span>{% endfor %}<span class="tag">{{hl['公司']}}</span></div>
+                <a href="{{hl['链接']}}" target="_blank" class="hl-title">{{hl['标题']}}</a><div class="hl-content">{{hl['核心内容']}}</div><div class="footer"><span>来源: {{hl['来源']}}</span><a href="{{hl['链接']}}" class="link-btn" target="_blank">阅读原文</a></div></div>{% endfor %}</div>{% endif %}
+                {% for co, items in news_data_map[d].items() %}<div class="company-section"><h2 class="sticky-title">{{co}}</h2>
+                {% for it in items %}<div class="news-item" onclick="this.classList.toggle('open')"><div class="tag-group">{% for tag in it['话题_list'] %}<span class="tag tag-important">{{tag}}</span>{% endfor %}{% if co == SECONDARY_TITLE or co == '行业新闻' %}<span class="tag tag-domestic">{{it['公司']}}</span>{% endif %}</div>
+                <span class="title-row">{{it['标题']}}</span><div class="content-box">{{it['核心内容']}}<div class="footer"><span>来源: {{it['来源']}}</span><a href="{{it['链接']}}" class="link-btn" target="_blank" onclick="event.stopPropagation();">阅读原文</a></div></div></div>{% endfor %}</div>{% endfor %}
             </div>
             {% endfor %}
         </div>
-
         <div id="panel-filter" class="tab-content">
             <div style="padding:10px 0; display:flex; gap:6px; margin-bottom:15px; background: #fff; position: sticky; top: 0; z-index: 101;">
                 <select id="f-date" style="flex:1; font-size:11px;"><option value="all">全时间段</option>{% for d in dates %}<option value="{{d}}">{% if '至' in d %}{{ d.split('至')[1].strip() }}{% else %}{{ d }}{% endif %}</option>{% endfor %}</select>
@@ -288,14 +258,9 @@ def main():
             if(select) { changeDate(select.value); }
         };
         function doSearch() {
-            const d = document.getElementById('f-date').value;
-            const c = document.getElementById('f-co').value;
-            const t = document.getElementById('f-topic').value;
+            const d = document.getElementById('f-date').value, c = document.getElementById('f-co').value, t = document.getElementById('f-topic').value;
             const filtered = rawData.filter(it => {
-                const dateMatch = (d === 'all' || it['日期'] == d);
-                const coMatch = (c === 'all' || it['公司'] == c);
-                const topicMatch = (t === 'all' || it['话题_list'].includes(t));
-                return dateMatch && coMatch && topicMatch;
+                return (d === 'all' || it['日期'] == d) && (c === 'all' || it['公司'].includes(c)) && (t === 'all' || it['话题_list'].includes(t));
             });
             const resDiv = document.getElementById('results');
             resDiv.innerHTML = filtered.length ? '' : '<p style="text-align:center; padding:30px; font-size:11px; color:#999;">无匹配新闻</p>';
