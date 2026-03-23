@@ -15,7 +15,6 @@ CORE_COMPANIES = ['OpenAI', 'Google', 'Anthropic', 'Meta', '字节跳动', '阿�
 SECONDARY_COMPANIES = ['Kimi', 'MiniMax', '智谱', 'xAI', '可灵', 'DeepSeek', 'Apple', '美团']
 SECONDARY_TITLE = "其余重点关注公司"
 
-# 更新后的优先级：头条 > 技术迭代 > 产品动态 > 数据洞察 > 商业动态 > 春节活动
 TOPIC_ORDER = ['技术迭代', '产品动态', '数据洞察', '行业洞察', '商业动态', '运营活动', '春节活动']
 
 OTHER_PRIORITY = [
@@ -45,7 +44,6 @@ def get_topic_rank(t_val):
     return TOPIC_ORDER.index(main_topic) if main_topic in TOPIC_ORDER else 99
 
 def main():
-    # 2. 数据读取与预处理
     try:
         df = pd.read_csv(SHEET_URL)
     except Exception as e:
@@ -59,18 +57,22 @@ def main():
     df['是否头条'] = pd.to_numeric(df['是否头条'], errors='coerce').fillna(0).astype(int)
     df = df.fillna("")
     
-    # 话题拆分处理
+    # 话题拆分
     df['话题_list'] = df['话题'].apply(lambda x: [i.strip() for i in str(x).replace(' ', '').split('、')] if x else [])
 
-    # --- 核心新增：公司拆分逻辑 ---
-    # 1. 将 "OpenAI、Google" 转换为列表 ["OpenAI", "Google"]
+    # 公司拆分逻辑 (用于分板块显示)
     df['公司_list'] = df['公司'].apply(lambda x: [i.strip() for i in str(x).split('、')] if x else [])
     
-    # 2. 爆炸处理：一条新闻如果有N个公司，就变成N行，每行对应一个公司
-    df_exploded = df.explode('公司_list')
-    # ----------------------------
+    # 用于历史检索筛选器的“纯净公司列表”
+    all_individual_companies = set()
+    for c_list in df['公司_list']:
+        all_individual_companies.update(c_list)
+    # 按中文/英文字母排序
+    all_unique_companies_clean = sorted(list(all_individual_companies), key=lambda x: x.encode('gbk') if isinstance(x, str) else x)
 
-    all_unique_companies = sorted(df['公司'].unique().tolist(), key=lambda x: x.encode('gbk') if isinstance(x, str) else x)
+    # 数据爆炸处理：用于分板块聚合显示
+    df_exploded = df.explode('公司_list')
+
     all_individual_topics = set()
     for t_list in df['话题_list']:
         all_individual_topics.update(t_list)
@@ -83,7 +85,6 @@ def main():
     headlines_map = {}
 
     for date in all_dates:
-        # 头条仍使用原始df（避免同一条头条在顶部重复显示多次，除非您希望它重复）
         day_df_orig = df[df['日期'] == date].copy()
         headline_df = day_df_orig[day_df_orig['是否头条'] > 0].copy()
         if not headline_df.empty:
@@ -93,7 +94,6 @@ def main():
         else:
             headlines_map[date] = []
 
-        # 分板块展示使用爆炸后的数据
         day_df_exp = df_exploded[df_exploded['日期'] == date].copy()
         news_data_map[date] = {}
 
@@ -107,29 +107,22 @@ def main():
                 t_idx = get_topic_rank(row['话题_list'])
                 return val if val > 0 else (1000 + t_idx)
 
-            # 这里的排序基于爆炸后的单体公司列：公司_list
             data_df['co_group_rank'] = data_df['公司_list'].apply(calc_company_internal_score)
             data_df['item_internal_rank'] = data_df.apply(calc_item_rank_score, axis=1)
             return data_df.sort_values(by=['co_group_rank', 'item_internal_rank']).to_dict('records')
 
-        # 核心大厂
         for company in CORE_COMPANIES:
             comp_df = day_df_exp[day_df_exp['公司_list'] == company].copy()
             if not comp_df.empty: news_data_map[date][company] = sort_section_data(comp_df)
         
-        # 其余重点关注公司
         sec_df = day_df_exp[day_df_exp['公司_list'].isin(SECONDARY_COMPANIES)].copy()
         if not sec_df.empty: news_data_map[date][SECONDARY_TITLE] = sort_section_data(sec_df)
         
-        # 行业新闻
         other_df = day_df_exp[~day_df_exp['公司_list'].isin(CORE_COMPANIES + SECONDARY_COMPANIES)].copy()
         if not other_df.empty: news_data_map[date]['行业新闻'] = sort_section_data(other_df, is_other=True)
 
     final_json_str = json.dumps(df.to_dict('records'), ensure_ascii=False)
 
-    # ==========================================
-    # 4. HTML 模板
-    # ==========================================
     template_str = """
     <!DOCTYPE html>
     <html lang="zh-CN">
@@ -137,14 +130,9 @@ def main():
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
         <title>全球 AI 核心动态内参</title>
-        <meta name="description" content="AI Pulse 深度内参：每日追踪 OpenAI、Google、字节跳动等全球顶级 AI 大厂动态。为您过滤噪音，提供技术迭代、产品发布及商业布局的高价值情报。">
-        <meta property="og:type" content="website">
-        <meta property="og:url" content="https://www.aipulse.run/">
-        <meta property="og:title" content="全球 AI 核心动态内参 | 每日情报更新">
-        <meta property="og:description" content="深度追踪主流 AI 大厂与实验室动态，涵盖技术迭代、商业布局及市场洞察，专业人士的 AI 每日必读。">
+        <meta name="description" content="AI Pulse 深度内参：每日追踪 OpenAI、Google、字节跳动等全球顶级 AI 大厂动态。">
         <meta property="og:image" content="https://www.aipulse.run/logo.jpg?v=2026">
         <link rel="shortcut icon" href="https://www.aipulse.run/logo.jpg">
-        <meta name="renderer" content="webkit">
         <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@700&display=swap" rel="stylesheet">
         <style>
             :root { --primary: #1a73e8; --header-bg: #475569; --bg: #ffffff; --text: #334155; --border: #f1f5f9; --sub-bg: #f8fafc; }
@@ -208,7 +196,7 @@ def main():
         <div id="panel-filter" class="tab-content">
             <div style="padding:10px 0; display:flex; gap:6px; margin-bottom:15px; background: #fff; position: sticky; top: 0; z-index: 101;">
                 <select id="f-date" style="flex:1; font-size:11px;"><option value="all">全时间段</option>{% for d in dates %}<option value="{{d}}">{% if '至' in d %}{{ d.split('至')[1].strip() }}{% else %}{{ d }}{% endif %}</option>{% endfor %}</select>
-                <select id="f-co" style="flex:1; font-size:11px;"><option value="all">所有公司</option>{% for c in all_companies %}<option value="{{c}}">{{c}}</option>{% endfor %}</select>
+                <select id="f-co" style="flex:1; font-size:11px;"><option value="all">所有公司</option>{% for c in all_companies_clean %}<option value="{{c}}">{{c}}</option>{% endfor %}</select>
                 <select id="f-topic" style="flex:1; font-size:11px;"><option value="all">所有话题</option>{% for t in all_topics %}<option value="{{t}}">{{t}}</option>{% endfor %}</select>
                 <button onclick="doSearch()" style="background:var(--primary); color:white; border:none; padding:4px 12px; font-size:11px; border-radius:2px; cursor:pointer;">检索</button>
             </div>
@@ -260,6 +248,7 @@ def main():
         function doSearch() {
             const d = document.getElementById('f-date').value, c = document.getElementById('f-co').value, t = document.getElementById('f-topic').value;
             const filtered = rawData.filter(it => {
+                // 修改点：匹配原始公司字符串中是否包含所选的单个公司名
                 return (d === 'all' || it['日期'] == d) && (c === 'all' || it['公司'].includes(c)) && (t === 'all' || it['话题_list'].includes(t));
             });
             const resDiv = document.getElementById('results');
@@ -277,13 +266,13 @@ def main():
     </html>
     """
 
-    # 4.1 输出生成
+    # 4.1 输出
     html = Template(template_str).render(
         dates=all_dates, 
         news_data_map=news_data_map, 
         headlines_map=headlines_map, 
         final_json_str=final_json_str, 
-        all_companies=all_unique_companies,
+        all_companies_clean=all_unique_companies_clean, # 使用新生成的干净列表
         all_topics=all_unique_topics,
         SECONDARY_TITLE=SECONDARY_TITLE
     )
@@ -291,7 +280,6 @@ def main():
     with open("index.html", "w", encoding="utf-8") as f: f.write(html)
     with open("CNAME", "w") as f: f.write(MY_DOMAIN)
 
-    # 微信申诉验证文件
     verify_filename = "9e6e1fc6e963e82b5025e7569958c4bb.txt"
     verify_content = "9228ad55ba9d00917e9f086a3830b550f27e545c"
     with open(verify_filename, "w", encoding="utf-8") as f:
