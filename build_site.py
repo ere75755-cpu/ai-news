@@ -44,6 +44,7 @@ def get_topic_rank(t_val):
     return TOPIC_ORDER.index(main_topic) if main_topic in TOPIC_ORDER else 99
 
 def main():
+    # 2. 数据读取与预处理
     try:
         df = pd.read_csv(SHEET_URL)
     except Exception as e:
@@ -57,28 +58,32 @@ def main():
     df['是否头条'] = pd.to_numeric(df['是否头条'], errors='coerce').fillna(0).astype(int)
     df = df.fillna("")
     
-    # 解析级联所需的年月日
-    def get_ymd(row):
-        dt = parse_date_for_sort(row['日期'])
-        return dt.year, dt.month
-
-    df['year'], df['month'] = zip(*df.apply(get_ymd, axis=1))
-
-    # 话题与公司拆分
+    # --- 核心：变量定义区 ---
+    # 1. 处理话题
     df['话题_list'] = df['话题'].apply(lambda x: [i.strip() for i in str(x).replace(' ', '').split('、')] if x else [])
+    all_individual_topics = set()
+    for t_list in df['话题_list']:
+        all_individual_topics.update(t_list)
+    all_unique_topics = sorted(list(all_individual_topics)) # 修复点：确保变量已定义
+
+    # 2. 处理公司与爆炸
     df['公司_list'] = df['公司'].apply(lambda x: [i.strip() for i in str(x).split('、')] if x else [])
-    
-    # 提取纯净公司列表用于检索
     all_individual_companies = set()
     for c_list in df['公司_list']:
         all_individual_companies.update(c_list)
     all_unique_companies_clean = sorted(list(all_individual_companies), key=lambda x: x.encode('gbk') if isinstance(x, str) else x)
 
-    # 爆炸处理用于板块聚合
+    # 3. 处理年月日
+    def get_ymd(date_str):
+        dt = parse_date_for_sort(date_str)
+        return dt.year, dt.month
+    df['year'], df['month'] = zip(*df['日期'].apply(get_ymd))
+
     df_exploded = df.explode('公司_list')
     all_dates = df['日期'].unique().tolist()
     all_dates.sort(key=parse_date_for_sort, reverse=True)
 
+    # 3. 核心分发逻辑
     news_data_map = {}
     headlines_map = {}
 
@@ -129,12 +134,11 @@ def main():
         <link rel="shortcut icon" href="https://www.aipulse.run/logo.jpg">
         <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@700&display=swap" rel="stylesheet">
         <style>
-            :root { --primary: #1a73e8; --header-bg: #475569; --bg: #ffffff; --text: #334155; --border: #e2e8f0; --sub-bg: #f8fafc; }
+            :root { --primary: #1a73e8; --header-bg: #475569; --bg: #ffffff; --text: #334155; --border: #f1f5f9; --sub-bg: #f8fafc; }
             body { font-family: -apple-system, "PingFang SC", sans-serif; background: var(--bg); color: var(--text); margin: 0; line-height: 1.5; }
             .container { max-width: 780px; margin: auto; padding: 10px; }
             header h1 { font-family: 'Noto Serif SC', serif; text-align: center; font-size: 20px; margin: 15px 0 10px; color: #0f172a; }
             
-            /* 统一筛选框样式 */
             select { 
                 -webkit-appearance: none; appearance: none;
                 width: 100%; font-size: 13px; color: #475569; 
@@ -155,7 +159,6 @@ def main():
             .tab-content { display: none; }
             .tab-content.active { display: block; }
 
-            /* 检索面板布局 */
             .filter-panel { background: #f8fafc; padding: 12px; border-radius: 10px; margin-bottom: 15px; display: flex; flex-direction: column; gap: 8px; }
             .filter-row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
             .filter-row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
@@ -225,7 +228,6 @@ def main():
     <script>
         const rawData = {{ final_json_str | safe }};
         
-        // 级联逻辑：初始化年份
         function initFilter() {
             const years = [...new Set(rawData.map(it => it.year))].sort((a,b) => b-a);
             const ySelect = document.getElementById('f-year');
@@ -234,31 +236,25 @@ def main():
             updateMonths();
         }
 
-        // 联动：更新月份
         function updateMonths() {
             const year = document.getElementById('f-year').value;
             const mSelect = document.getElementById('f-month');
             mSelect.innerHTML = '<option value="all">所有月份</option>';
-            
             let filtered = rawData;
             if(year !== 'all') filtered = rawData.filter(it => it.year == year);
-            
             const months = [...new Set(filtered.map(it => it.month))].sort((a,b) => a-b);
             months.forEach(m => mSelect.add(new Option(m + '月', m)));
             updateDays();
         }
 
-        // 联动：更新具体日期
         function updateDays() {
             const year = document.getElementById('f-year').value;
             const month = document.getElementById('f-month').value;
             const dSelect = document.getElementById('f-day');
             dSelect.innerHTML = '<option value="all">具体日期</option>';
-            
             let filtered = rawData;
             if(year !== 'all') filtered = filtered.filter(it => it.year == year);
             if(month !== 'all') filtered = filtered.filter(it => it.month == month);
-            
             const dates = [...new Set(filtered.map(it => it.日期))];
             dates.forEach(d => {
                 const display = d.includes('至') ? d.split('至')[1].trim() : d;
@@ -316,19 +312,15 @@ def main():
             const day = document.getElementById('f-day').value;
             const company = document.getElementById('f-co').value;
             const topic = document.getElementById('f-topic').value;
-            
             const filtered = rawData.filter(it => {
                 let dateMatch = true;
-                // 级联日期逻辑
                 if (day !== 'all') { dateMatch = it.日期 === day; }
                 else if (month !== 'all') { dateMatch = (it.year == year && it.month == month); }
                 else if (year !== 'all') { dateMatch = it.year == year; }
-
                 const coMatch = (company === 'all' || it.公司.includes(company));
                 const topicMatch = (topic === 'all' || it.话题_list.includes(topic));
                 return dateMatch && coMatch && topicMatch;
             });
-
             const resDiv = document.getElementById('results');
             resDiv.innerHTML = filtered.length ? '' : '<p style="text-align:center; padding:30px; font-size:11px; color:#999;">无匹配新闻</p>';
             filtered.forEach(it => {
@@ -344,21 +336,19 @@ def main():
     </html>
     """
 
-    # 4.1 输出
     html = Template(template_str).render(
         dates=all_dates, 
         news_data_map=news_data_map, 
         headlines_map=headlines_map, 
         final_json_str=final_json_str, 
         all_companies_clean=all_unique_companies_clean,
-        all_topics=all_unique_topics,
+        all_topics=all_unique_topics, # 变量在此正常渲染
         SECONDARY_TITLE=SECONDARY_TITLE
     )
     
     with open("index.html", "w", encoding="utf-8") as f: f.write(html)
     with open("CNAME", "w") as f: f.write(MY_DOMAIN)
 
-    # 微信验证文件保持不变
     verify_filename = "9e6e1fc6e963e82b5025e7569958c4bb.txt"
     verify_content = "9228ad55ba9d00917e9f086a3830b550f27e545c"
     with open(verify_filename, "w", encoding="utf-8") as f:
