@@ -44,7 +44,6 @@ def get_topic_rank(t_val):
     return TOPIC_ORDER.index(main_topic) if main_topic in TOPIC_ORDER else 99
 
 def main():
-    # 2. 数据读取与预处理
     try:
         df = pd.read_csv(SHEET_URL)
     except Exception as e:
@@ -62,37 +61,35 @@ def main():
     df['话题_list'] = df['话题'].apply(lambda x: [i.strip() for i in str(x).replace(' ', '').split('、')] if x else [])
     df['公司_list'] = df['公司'].apply(lambda x: [i.strip() for i in str(x).split('、')] if x else [])
     
-    # 提取所有不重复公司（用于筛选器）
+    # 提取所有不重复公司
     all_individual_companies = set()
     for c_list in df['公司_list']:
         all_individual_companies.update(c_list)
     all_unique_companies_clean = sorted(list(all_individual_companies), key=lambda x: x.encode('gbk') if isinstance(x, str) else x)
 
-    # 提取所有不重复话题（用于筛选器）
+    # 提取所有不重复话题
     all_individual_topics = set()
     for t_list in df['话题_list']:
         all_individual_topics.update(t_list)
     all_unique_topics = sorted(list(all_individual_topics))
 
-    # --- 新增：提取年份和月份用于筛选 ---
-    # 我们以“日期”列中的结束日期为准
-    def get_year_month(date_str):
+    # 解析年月日用于级联
+    def get_ymd(date_str):
         dt = parse_date_for_sort(date_str)
-        return dt.year, dt.month
+        # 格式化日期显示（移除“至”前面的部分）
+        clean_d = date_str.split('至')[1].strip() if '至' in date_str else date_str.strip()
+        return dt.year, dt.month, clean_d
 
-    df['year'] = df['日期'].apply(lambda x: get_year_month(x)[0])
-    df['month'] = df['日期'].apply(lambda x: get_year_month(x)[1])
-    
-    all_years = sorted(df[df['year'] > 1900]['year'].unique().tolist(), reverse=True)
-    all_months = sorted(df['month'].unique().tolist())
+    df['year'] = df['日期'].apply(lambda x: get_ymd(x)[0])
+    df['month'] = df['日期'].apply(lambda x: get_ymd(x)[1])
+    df['day_display'] = df['日期'].apply(lambda x: get_ymd(x)[2])
 
-    # 爆炸处理用于板块显示
+    # 爆炸处理
     df_exploded = df.explode('公司_list')
-
     all_dates = df['日期'].unique().tolist()
     all_dates.sort(key=parse_date_for_sort, reverse=True)
 
-    # 核心分发逻辑保持不变...
+    # 分发排序逻辑
     news_data_map = {}
     headlines_map = {}
 
@@ -129,11 +126,9 @@ def main():
         other_df = day_df_exp[~day_df_exp['公司_list'].isin(CORE_COMPANIES + SECONDARY_COMPANIES)].copy()
         if not other_df.empty: news_data_map[date]['行业新闻'] = sort_section_data(other_df, is_other=True)
 
+    # 导出包含年月日的完整数据给 JS
     final_json_str = json.dumps(df.to_dict('records'), ensure_ascii=False)
 
-    # ==========================================
-    # 4. HTML 模板
-    # ==========================================
     template_str = """
     <!DOCTYPE html>
     <html lang="zh-CN">
@@ -146,25 +141,47 @@ def main():
         <link rel="shortcut icon" href="https://www.aipulse.run/logo.jpg">
         <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@700&display=swap" rel="stylesheet">
         <style>
-            :root { --primary: #1a73e8; --header-bg: #475569; --bg: #ffffff; --text: #334155; --border: #f1f5f9; --sub-bg: #f8fafc; }
+            :root { --primary: #1a73e8; --header-bg: #475569; --bg: #ffffff; --text: #334155; --border: #e2e8f0; --sub-bg: #f8fafc; }
             body { font-family: -apple-system, "PingFang SC", sans-serif; background: var(--bg); color: var(--text); margin: 0; line-height: 1.5; }
             .container { max-width: 780px; margin: auto; padding: 10px; }
             header h1 { font-family: 'Noto Serif SC', serif; text-align: center; font-size: 20px; margin: 15px 0 10px; color: #0f172a; }
+            
+            /* 控制条外形统一 */
             .control-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding: 0 4px 6px 4px; border-bottom: 1px solid #f1f5f9; }
             .time-label { font-size: 10px; color: #94a3b8; }
-            .date-picker { font-size: 10px; color: var(--primary); font-weight: bold; border: 1px solid #e2e8f0; border-radius: 2px; padding: 1px 4px; background: transparent; cursor: pointer; }
+            
+            /* 统一筛选框外形 */
+            select { 
+                -webkit-appearance: none; 
+                appearance: none;
+                font-size: 13px; 
+                color: #475569; 
+                border: 1px solid var(--border); 
+                border-radius: 6px; 
+                padding: 6px 12px; 
+                background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%2394a3b8' viewBox='0 0 16 16'%3E%3Cpath d='M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z'/%3E%3C/svg%3E") no-repeat right 10px center;
+                cursor: pointer;
+                transition: all 0.2s;
+            }
+            select:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.1); }
+            
             .tabs-nav { display: flex; justify-content: center; margin-bottom: 15px; border-bottom: 1px solid #f1f5f9; }
             .tab-btn { padding: 8px 16px; cursor: pointer; border: none; background: none; font-size: 13.5px; font-weight: 600; color: #94a3b8; position: relative; }
             .tab-btn.active { color: var(--primary) !important; }
             .tab-btn.active::after { content: ''; position: absolute; bottom: -1px; left: 0; width: 100%; height: 2px; background: var(--primary); }
             .tab-content { display: none; }
             .tab-content.active { display: block; }
+
+            /* 历史检索面板布局 */
+            .filter-group { background: #f8fafc; padding: 15px; border-radius: 12px; margin-bottom: 20px; display: flex; flex-direction: column; gap: 10px; }
+            .filter-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+            .filter-full-row { display: grid; grid-template-columns: 1fr 100px; gap: 8px; }
+            .btn-search { background: var(--primary); color: white; border: none; padding: 8px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; }
+
+            /* 内容样式 */
             .sticky-title { position: -webkit-sticky; position: sticky; top: 0; z-index: 1000; background: rgba(255, 255, 255, 0.98); backdrop-filter: blur(8px); padding: 8px 0 8px 10px; margin: 0; color: var(--primary); border-left: 4px solid var(--primary); font-size: 15px; font-weight: 700; border-bottom: 1px solid #f1f5f9; font-family: 'Noto Serif SC', serif; }
             .headline-title { position: -webkit-sticky; position: sticky; top: 0; z-index: 1001; background: var(--header-bg); padding: 10px 0; margin: 0; color: #ffffff; text-align: center; font-size: 15px; font-weight: 700; letter-spacing: 3px; font-family: 'Noto Serif SC', serif; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
             .headline-section { margin-bottom: 30px; background: var(--sub-bg); padding-bottom: 10px; border-radius: 0 0 4px 4px; }
-            .hl-item { padding: 12px; border-bottom: 1px solid #edf2f7; }
-            .hl-title { font-size: 15px; font-weight: 700; color: #1e293b; text-decoration: none; display: block; margin-bottom: 4px; font-family: 'Noto Serif SC', serif; line-height: 1.4; }
-            .hl-content { font-size: 12px; color: #475569; line-height: 1.6; margin: 6px 0; text-align: justify; }
             .news-item { padding: 10px 4px; border-bottom: 1px solid #f1f5f9; cursor: pointer; }
             .tag-group { margin-bottom: 4px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
             .tag { font-size: 9px; padding: 1px 5px; font-weight: 600; background: #f1f5f9; color: #64748b; border-radius: 2px; }
@@ -177,10 +194,6 @@ def main():
             .news-item.open .content-box { display: block; }
             .footer { font-size: 10px; color: #94a3b8; display: flex; justify-content: space-between; margin-top: 8px; }
             .link-btn { color: var(--primary); text-decoration: none; font-weight: 700; }
-            
-            /* 筛选器样式优化 */
-            .filter-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
-            .filter-grid select { width: 100%; font-size: 11px; padding: 4px; border: 1px solid var(--border); border-radius: 4px; }
         </style>
     </head>
     <body>
@@ -190,9 +203,10 @@ def main():
             <div class="tab-btn active" id="btn-daily" onclick="switchTab('daily')">每日综述</div>
             <div class="tab-btn" id="btn-filter" onclick="switchTab('filter')">历史检索</div>
         </div>
+        
         <div id="main-control-bar" class="control-bar">
             <div id="current-time-label" class="time-label">监测周期：加载中...</div>
-            <select id="dateSelect" class="date-picker" onchange="changeDate(this.value)">
+            <select id="dateSelect" onchange="changeDate(this.value)">
                 {% for d in dates %}<option value="{{d}}">{% if '至' in d %}{{ d.split('至')[1].strip() }}{% else %}{{ d }}{% endif %}</option>{% endfor %}
             </select>
         </div>
@@ -211,23 +225,63 @@ def main():
         </div>
 
         <div id="panel-filter" class="tab-content">
-            <div style="padding:10px 0; background: #fff; position: sticky; top: 0; z-index: 101; border-bottom: 1px solid #f1f5f9; margin-bottom: 15px;">
-                <div class="filter-grid">
-                    <select id="f-year"><option value="all">所有年份</option>{% for y in years %}<option value="{{y}}">{{y}}年</option>{% endfor %}</select>
-                    <select id="f-month"><option value="all">所有月份</option>{% for m in months %}<option value="{{m}}">{{m}}月</option>{% endfor %}</select>
-                    <select id="f-date"><option value="all">具体日期 (选后年月失效)</option>{% for d in dates %}<option value="{{d}}">{% if '至' in d %}{{ d.split('至')[1].strip() }}{% else %}{{ d }}{% endif %}</option>{% endfor %}</select>
+            <div class="filter-group">
+                <div class="filter-row">
+                    <select id="f-year" onchange="updateMonthList()"><option value="all">年份</option></select>
+                    <select id="f-month" onchange="updateDayList()"><option value="all">月份</option></select>
+                    <select id="f-day"><option value="all">具体日期</option></select>
+                </div>
+                <div class="filter-row" style="grid-template-columns: 1fr 1fr;">
+                    <select id="f-co"><option value="all">所有公司</option>{% for c in all_companies_clean %}<option value="{{c}}">{{c}}</option>{% endfor %}</select>
                     <select id="f-topic"><option value="all">所有话题</option>{% for t in all_topics %}<option value="{{t}}">{{t}}</option>{% endfor %}</select>
                 </div>
-                <div style="display:flex; gap:8px;">
-                    <select id="f-co" style="flex:1; font-size:11px; padding:4px;"><option value="all">所有公司</option>{% for c in all_companies_clean %}<option value="{{c}}">{{c}}</option>{% endfor %}</select>
-                    <button onclick="doSearch()" style="background:var(--primary); color:white; border:none; padding:6px 20px; font-size:11px; border-radius:4px; cursor:pointer; font-weight:bold;">立即检索</button>
-                </div>
+                <button onclick="doSearch()" class="btn-search">立即检索新闻</button>
             </div>
             <div id="results"></div>
         </div>
     </div>
     <script>
         const rawData = {{ final_json_str | safe }};
+        
+        // 级联筛选初始化
+        function initCascade() {
+            const years = [...new Set(rawData.map(it => it.year))].sort((a,b) => b-a);
+            const ySelect = document.getElementById('f-year');
+            years.forEach(y => {
+                let opt = new Option(y + '年', y);
+                ySelect.add(opt);
+            });
+        }
+
+        function updateMonthList() {
+            const y = document.getElementById('f-year').value;
+            const mSelect = document.getElementById('f-month');
+            mSelect.innerHTML = '<option value="all">月份</option>';
+            document.getElementById('f-day').innerHTML = '<option value="all">具体日期</option>';
+            
+            if(y === 'all') return;
+            const months = [...new Set(rawData.filter(it => it.year == y).map(it => it.month))].sort((a,b) => a-b);
+            months.forEach(m => {
+                let opt = new Option(m + '月', m);
+                mSelect.add(opt);
+            });
+        }
+
+        function updateDayList() {
+            const y = document.getElementById('f-year').value;
+            const m = document.getElementById('f-month').value;
+            const dSelect = document.getElementById('f-day');
+            dSelect.innerHTML = '<option value="all">具体日期</option>';
+            
+            if(m === 'all') return;
+            const days = [...new Set(rawData.filter(it => it.year == y && it.month == m).map(it => it.日期))];
+            days.forEach(d => {
+                let display = d.includes('至') ? d.split('至')[1].trim() : d;
+                let opt = new Option(display, d);
+                dSelect.add(opt);
+            });
+        }
+
         function switchTab(id) {
             document.querySelectorAll('.tab-content').forEach(p => p.classList.remove('active'));
             document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -235,14 +289,16 @@ def main():
             document.getElementById('btn-' + id).classList.add('active');
             const ctrlBar = document.getElementById('main-control-bar');
             if (ctrlBar) { ctrlBar.style.display = (id === 'filter') ? 'none' : 'flex'; }
-            if(id === 'filter') doSearch();
+            if(id === 'filter') { initCascade(); doSearch(); }
         }
+
         function changeDate(d) {
             document.querySelectorAll('.date-container').forEach(g => g.style.display = 'none');
             const target = document.getElementById('date-group-' + d);
             if(target) target.style.display = 'block';
             updateTimeLabel(d);
         }
+
         function updateTimeLabel(d) {
             let startLabel = ""; let endLabel = "";
             if (d.includes("至")) {
@@ -264,6 +320,7 @@ def main():
             const labelEl = document.getElementById('current-time-label');
             if (labelEl) { labelEl.innerText = startLabel ? "监测周期：" + startLabel + " 至 " + endLabel : "监测周期：" + d; }
         }
+
         window.onload = () => { 
             const select = document.getElementById('dateSelect'); 
             if(select) { changeDate(select.value); }
@@ -272,20 +329,15 @@ def main():
         function doSearch() {
             const y = document.getElementById('f-year').value;
             const m = document.getElementById('f-month').value;
-            const d = document.getElementById('f-date').value;
+            const d = document.getElementById('f-day').value;
             const c = document.getElementById('f-co').value;
             const t = document.getElementById('f-topic').value;
             
             const filtered = rawData.filter(it => {
-                // 日期逻辑：如果选了具体日期，则忽略年和月。否则按年和月筛选。
                 let dateMatch = true;
-                if (d !== 'all') {
-                    dateMatch = (it['日期'] === d);
-                } else {
-                    const yearMatch = (y === 'all' || it['year'].toString() === y);
-                    const monthMatch = (m === 'all' || it['month'].toString() === m);
-                    dateMatch = yearMatch && monthMatch;
-                }
+                if (d !== 'all') { dateMatch = (it['日期'] === d); }
+                else if (m !== 'all') { dateMatch = (it['year'].toString() === y && it['month'].toString() === m); }
+                else if (y !== 'all') { dateMatch = (it['year'].toString() === y); }
 
                 const coMatch = (c === 'all' || it['公司'].includes(c));
                 const topicMatch = (t === 'all' || it['话题_list'].includes(t));
@@ -296,7 +348,7 @@ def main():
             resDiv.innerHTML = filtered.length ? '' : '<p style="text-align:center; padding:30px; font-size:11px; color:#999;">无匹配新闻</p>';
             filtered.forEach(it => {
                 const item = document.createElement('div'); item.className = 'news-item'; item.onclick = () => item.classList.toggle('open');
-                const showD = it['日期'].includes('至') ? it['日期'].split('至')[1].trim() : it['日期'].trim();
+                const showD = it['日期'].includes('至') ? it['日期'].split('至')[1].strip() : it['日期'].trim();
                 let tagsHtml = it['话题_list'].map(tag => `<span class="tag tag-important">${tag}</span>`).join('');
                 item.innerHTML = `<div class="tag-group">${tagsHtml}<span class="tag">${showD}</span><span class="tag">${it['公司']}</span></div><span class="title-row">${it['标题']}</span><div class="content-box">${it['核心内容']}<div class="footer"><span>来源: ${it['来源']}</span><a href="${it['链接']}" class="link-btn" target="_blank" onclick="event.stopPropagation();">阅读原文</a></div></div>`;
                 resDiv.appendChild(item);
@@ -307,11 +359,8 @@ def main():
     </html>
     """
 
-    # 4.1 渲染输出
     html = Template(template_str).render(
-        dates=all_dates,
-        years=all_years,
-        months=all_months,
+        dates=all_dates, 
         news_data_map=news_data_map, 
         headlines_map=headlines_map, 
         final_json_str=final_json_str, 
@@ -323,7 +372,6 @@ def main():
     with open("index.html", "w", encoding="utf-8") as f: f.write(html)
     with open("CNAME", "w") as f: f.write(MY_DOMAIN)
 
-    # 微信申诉验证文件
     verify_filename = "9e6e1fc6e963e82b5025e7569958c4bb.txt"
     verify_content = "9228ad55ba9d00917e9f086a3830b550f27e545c"
     with open(verify_filename, "w", encoding="utf-8") as f:
