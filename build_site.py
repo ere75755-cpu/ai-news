@@ -58,22 +58,20 @@ def main():
     df['是否头条'] = pd.to_numeric(df['是否头条'], errors='coerce').fillna(0).astype(int)
     df = df.fillna("")
     
-    # --- 核心：变量定义区 ---
-    # 1. 处理话题
+    # 话题与公司处理
     df['话题_list'] = df['话题'].apply(lambda x: [i.strip() for i in str(x).replace(' ', '').split('、')] if x else [])
-    all_individual_topics = set()
-    for t_list in df['话题_list']:
-        all_individual_topics.update(t_list)
-    all_unique_topics = sorted(list(all_individual_topics)) # 修复点：确保变量已定义
-
-    # 2. 处理公司与爆炸
     df['公司_list'] = df['公司'].apply(lambda x: [i.strip() for i in str(x).split('、')] if x else [])
+    
+    # 检索用列表
+    all_individual_topics = set()
+    for t_list in df['话题_list']: all_individual_topics.update(t_list)
+    all_unique_topics = sorted(list(all_individual_topics))
+
     all_individual_companies = set()
-    for c_list in df['公司_list']:
-        all_individual_companies.update(c_list)
+    for c_list in df['公司_list']: all_individual_companies.update(c_list)
     all_unique_companies_clean = sorted(list(all_individual_companies), key=lambda x: x.encode('gbk') if isinstance(x, str) else x)
 
-    # 3. 处理年月日
+    # 提取级联用年月日
     def get_ymd(date_str):
         dt = parse_date_for_sort(date_str)
         return dt.year, dt.month
@@ -139,6 +137,7 @@ def main():
             .container { max-width: 780px; margin: auto; padding: 10px; }
             header h1 { font-family: 'Noto Serif SC', serif; text-align: center; font-size: 20px; margin: 15px 0 10px; color: #0f172a; }
             
+            /* 筛选框样式统一 */
             select { 
                 -webkit-appearance: none; appearance: none;
                 width: 100%; font-size: 13px; color: #475569; 
@@ -159,14 +158,22 @@ def main():
             .tab-content { display: none; }
             .tab-content.active { display: block; }
 
+            /* 今日重点 (头条) 专用样式 */
+            .headline-title { position: -webkit-sticky; position: sticky; top: 0; z-index: 1001; background: var(--header-bg); padding: 10px 0; margin: 0; color: #ffffff; text-align: center; font-size: 15px; font-weight: 700; letter-spacing: 3px; font-family: 'Noto Serif SC', serif; box-shadow: 0 2px 10px rgba(0,0,0,0.05); border-radius: 4px 4px 0 0; }
+            .headline-section { margin-bottom: 30px; background: var(--sub-bg); padding-bottom: 10px; border-radius: 0 0 4px 4px; border: 1px solid #edf2f7; border-top: none; }
+            .hl-item { padding: 12px; border-bottom: 1px solid #edf2f7; }
+            .hl-item:last-child { border-bottom: none; }
+            .hl-title { font-size: 15px; font-weight: 700; color: #1e293b; text-decoration: none; display: block; margin-bottom: 4px; font-family: 'Noto Serif SC', serif; line-height: 1.4; }
+            .hl-content { font-size: 12px; color: #475569; line-height: 1.6; margin: 6px 0; text-align: justify; }
+
+            /* 历史检索面板专用布局 */
             .filter-panel { background: #f8fafc; padding: 12px; border-radius: 10px; margin-bottom: 15px; display: flex; flex-direction: column; gap: 8px; }
             .filter-row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
             .filter-row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
             .btn-search { background: var(--primary); color: white; border: none; padding: 10px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; margin-top: 4px; }
 
+            /* 常规新闻列表样式 */
             .sticky-title { position: -webkit-sticky; position: sticky; top: 0; z-index: 1000; background: rgba(255, 255, 255, 0.98); backdrop-filter: blur(8px); padding: 8px 0 8px 10px; margin: 0; color: var(--primary); border-left: 4px solid var(--primary); font-size: 15px; font-weight: 700; border-bottom: 1px solid #f1f5f9; font-family: 'Noto Serif SC', serif; }
-            .headline-title { position: -webkit-sticky; position: sticky; top: 0; z-index: 1001; background: var(--header-bg); padding: 10px 0; margin: 0; color: #ffffff; text-align: center; font-size: 15px; font-weight: 700; letter-spacing: 3px; font-family: 'Noto Serif SC', serif; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
-            .headline-section { margin-bottom: 30px; background: var(--sub-bg); padding-bottom: 10px; border-radius: 0 0 4px 4px; }
             .news-item { padding: 10px 4px; border-bottom: 1px solid #f1f5f9; cursor: pointer; }
             .tag-group { margin-bottom: 4px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
             .tag { font-size: 9px; padding: 1px 5px; font-weight: 600; background: #f1f5f9; color: #64748b; border-radius: 2px; }
@@ -199,12 +206,47 @@ def main():
         <div id="panel-daily" class="tab-content active">
             {% for d in dates %}
             <div id="date-group-{{d}}" class="date-container" style="display: {{ 'block' if loop.first else 'none' }}">
-                {% if headlines_map[d] %}<div class="headline-section"><h2 class="headline-title">今日重点</h2>
-                {% for hl in headlines_map[d] %}<div class="hl-item"><div class="tag-group">{% for tag in hl['话题_list'] %}<span class="tag tag-important">{{tag}}</span>{% endfor %}<span class="tag">{{hl['公司']}}</span></div>
-                <a href="{{hl['链接']}}" target="_blank" class="hl-title">{{hl['标题']}}</a><div class="hl-content">{{hl['核心内容']}}</div><div class="footer"><span>来源: {{hl['来源']}}</span><a href="{{hl['链接']}}" class="link-btn" target="_blank">阅读原文</a></div></div>{% endfor %}</div>{% endif %}
-                {% for co, items in news_data_map[d].items() %}<div class="company-section"><h2 class="sticky-title">{{co}}</h2>
-                {% for it in items %}<div class="news-item" onclick="this.classList.toggle('open')"><div class="tag-group">{% for tag in it['话题_list'] %}<span class="tag tag-important">{{tag}}</span>{% endfor %}{% if co == SECONDARY_TITLE or co == '行业新闻' %}<span class="tag tag-domestic">{{it['公司']}}</span>{% endif %}</div>
-                <span class="title-row">{{it['标题']}}</span><div class="content-box">{{it['核心内容']}}<div class="footer"><span>来源: {{it['来源']}}</span><a href="{{it['链接']}}" class="link-btn" target="_blank" onclick="event.stopPropagation();">阅读原文</a></div></div></div>{% endfor %}</div>{% endfor %}
+                {% if headlines_map[d] %}
+                <div class="headline-section">
+                    <h2 class="headline-title">今日重点</h2>
+                    {% for hl in headlines_map[d] %}
+                    <div class="hl-item">
+                        <div class="tag-group">
+                            {% for tag in hl['话题_list'] %}<span class="tag tag-important">{{tag}}</span>{% endfor %}
+                            <span class="tag">{{hl['公司']}}</span>
+                        </div>
+                        <a href="{{hl['链接']}}" target="_blank" class="hl-title">{{hl['标题']}}</a>
+                        <div class="hl-content">{{hl['核心内容']}}</div>
+                        <div class="footer">
+                            <span>来源: {{hl['来源']}}</span>
+                            <a href="{{hl['链接']}}" class="link-btn" target="_blank">阅读原文</a>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+                
+                {% for co, items in news_data_map[d].items() %}
+                <div class="company-section">
+                    <h2 class="sticky-title">{{co}}</h2>
+                    {% for it in items %}
+                    <div class="news-item" onclick="this.classList.toggle('open')">
+                        <div class="tag-group">
+                            {% for tag in it['话题_list'] %}<span class="tag tag-important">{{tag}}</span>{% endfor %}
+                            {% if co == SECONDARY_TITLE or co == '行业新闻' %}<span class="tag tag-domestic">{{it['公司']}}</span>{% endif %}
+                        </div>
+                        <span class="title-row">{{it['标题']}}</span>
+                        <div class="content-box">
+                            {{it['核心内容']}}
+                            <div class="footer">
+                                <span>来源: {{it['来源']}}</span>
+                                <a href="{{it['链接']}}" class="link-btn" target="_blank" onclick="event.stopPropagation();">阅读原文</a>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endfor %}
             </div>
             {% endfor %}
         </div>
@@ -257,7 +299,7 @@ def main():
             if(month !== 'all') filtered = filtered.filter(it => it.month == month);
             const dates = [...new Set(filtered.map(it => it.日期))];
             dates.forEach(d => {
-                const display = d.includes('至') ? d.split('至')[1].trim() : d;
+                const display = d.includes('至') ? d.split('至')[1].strip() : d;
                 dSelect.add(new Option(display, d));
             });
         }
@@ -336,19 +378,21 @@ def main():
     </html>
     """
 
+    # 4.1 输出生成
     html = Template(template_str).render(
         dates=all_dates, 
         news_data_map=news_data_map, 
         headlines_map=headlines_map, 
         final_json_str=final_json_str, 
         all_companies_clean=all_unique_companies_clean,
-        all_topics=all_unique_topics, # 变量在此正常渲染
+        all_topics=all_unique_topics,
         SECONDARY_TITLE=SECONDARY_TITLE
     )
     
     with open("index.html", "w", encoding="utf-8") as f: f.write(html)
     with open("CNAME", "w") as f: f.write(MY_DOMAIN)
 
+    # 微信验证文件
     verify_filename = "9e6e1fc6e963e82b5025e7569958c4bb.txt"
     verify_content = "9228ad55ba9d00917e9f086a3830b550f27e545c"
     with open(verify_filename, "w", encoding="utf-8") as f:
