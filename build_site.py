@@ -44,6 +44,7 @@ def get_topic_rank(t_val):
     return TOPIC_ORDER.index(main_topic) if main_topic in TOPIC_ORDER else 99
 
 def main():
+    # 2. 数据读取与预处理
     try:
         df = pd.read_csv(SHEET_URL)
     except Exception as e:
@@ -57,30 +58,41 @@ def main():
     df['是否头条'] = pd.to_numeric(df['是否头条'], errors='coerce').fillna(0).astype(int)
     df = df.fillna("")
     
-    # 话题拆分
+    # 话题与公司拆分
     df['话题_list'] = df['话题'].apply(lambda x: [i.strip() for i in str(x).replace(' ', '').split('、')] if x else [])
-
-    # 公司拆分逻辑 (用于分板块显示)
     df['公司_list'] = df['公司'].apply(lambda x: [i.strip() for i in str(x).split('、')] if x else [])
     
-    # 用于历史检索筛选器的“纯净公司列表”
+    # 提取所有不重复公司（用于筛选器）
     all_individual_companies = set()
     for c_list in df['公司_list']:
         all_individual_companies.update(c_list)
-    # 按中文/英文字母排序
     all_unique_companies_clean = sorted(list(all_individual_companies), key=lambda x: x.encode('gbk') if isinstance(x, str) else x)
 
-    # 数据爆炸处理：用于分板块聚合显示
-    df_exploded = df.explode('公司_list')
-
+    # 提取所有不重复话题（用于筛选器）
     all_individual_topics = set()
     for t_list in df['话题_list']:
         all_individual_topics.update(t_list)
     all_unique_topics = sorted(list(all_individual_topics))
 
+    # --- 新增：提取年份和月份用于筛选 ---
+    # 我们以“日期”列中的结束日期为准
+    def get_year_month(date_str):
+        dt = parse_date_for_sort(date_str)
+        return dt.year, dt.month
+
+    df['year'] = df['日期'].apply(lambda x: get_year_month(x)[0])
+    df['month'] = df['日期'].apply(lambda x: get_year_month(x)[1])
+    
+    all_years = sorted(df[df['year'] > 1900]['year'].unique().tolist(), reverse=True)
+    all_months = sorted(df['month'].unique().tolist())
+
+    # 爆炸处理用于板块显示
+    df_exploded = df.explode('公司_list')
+
     all_dates = df['日期'].unique().tolist()
     all_dates.sort(key=parse_date_for_sort, reverse=True)
 
+    # 核心分发逻辑保持不变...
     news_data_map = {}
     headlines_map = {}
 
@@ -99,14 +111,12 @@ def main():
 
         def sort_section_data(data_df, is_other=False):
             def calc_company_internal_score(c_name):
-                if is_other:
-                    return OTHER_PRIORITY.index(c_name) if c_name in OTHER_PRIORITY else 999
+                if is_other: return OTHER_PRIORITY.index(c_name) if c_name in OTHER_PRIORITY else 999
                 return get_company_rank(c_name)
             def calc_item_rank_score(row):
                 val = row['是否头条']
                 t_idx = get_topic_rank(row['话题_list'])
                 return val if val > 0 else (1000 + t_idx)
-
             data_df['co_group_rank'] = data_df['公司_list'].apply(calc_company_internal_score)
             data_df['item_internal_rank'] = data_df.apply(calc_item_rank_score, axis=1)
             return data_df.sort_values(by=['co_group_rank', 'item_internal_rank']).to_dict('records')
@@ -114,15 +124,16 @@ def main():
         for company in CORE_COMPANIES:
             comp_df = day_df_exp[day_df_exp['公司_list'] == company].copy()
             if not comp_df.empty: news_data_map[date][company] = sort_section_data(comp_df)
-        
         sec_df = day_df_exp[day_df_exp['公司_list'].isin(SECONDARY_COMPANIES)].copy()
         if not sec_df.empty: news_data_map[date][SECONDARY_TITLE] = sort_section_data(sec_df)
-        
         other_df = day_df_exp[~day_df_exp['公司_list'].isin(CORE_COMPANIES + SECONDARY_COMPANIES)].copy()
         if not other_df.empty: news_data_map[date]['行业新闻'] = sort_section_data(other_df, is_other=True)
 
     final_json_str = json.dumps(df.to_dict('records'), ensure_ascii=False)
 
+    # ==========================================
+    # 4. HTML 模板
+    # ==========================================
     template_str = """
     <!DOCTYPE html>
     <html lang="zh-CN">
@@ -166,6 +177,10 @@ def main():
             .news-item.open .content-box { display: block; }
             .footer { font-size: 10px; color: #94a3b8; display: flex; justify-content: space-between; margin-top: 8px; }
             .link-btn { color: var(--primary); text-decoration: none; font-weight: 700; }
+            
+            /* 筛选器样式优化 */
+            .filter-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+            .filter-grid select { width: 100%; font-size: 11px; padding: 4px; border: 1px solid var(--border); border-radius: 4px; }
         </style>
     </head>
     <body>
@@ -181,6 +196,7 @@ def main():
                 {% for d in dates %}<option value="{{d}}">{% if '至' in d %}{{ d.split('至')[1].strip() }}{% else %}{{ d }}{% endif %}</option>{% endfor %}
             </select>
         </div>
+        
         <div id="panel-daily" class="tab-content active">
             {% for d in dates %}
             <div id="date-group-{{d}}" class="date-container" style="display: {{ 'block' if loop.first else 'none' }}">
@@ -193,12 +209,19 @@ def main():
             </div>
             {% endfor %}
         </div>
+
         <div id="panel-filter" class="tab-content">
-            <div style="padding:10px 0; display:flex; gap:6px; margin-bottom:15px; background: #fff; position: sticky; top: 0; z-index: 101;">
-                <select id="f-date" style="flex:1; font-size:11px;"><option value="all">全时间段</option>{% for d in dates %}<option value="{{d}}">{% if '至' in d %}{{ d.split('至')[1].strip() }}{% else %}{{ d }}{% endif %}</option>{% endfor %}</select>
-                <select id="f-co" style="flex:1; font-size:11px;"><option value="all">所有公司</option>{% for c in all_companies_clean %}<option value="{{c}}">{{c}}</option>{% endfor %}</select>
-                <select id="f-topic" style="flex:1; font-size:11px;"><option value="all">所有话题</option>{% for t in all_topics %}<option value="{{t}}">{{t}}</option>{% endfor %}</select>
-                <button onclick="doSearch()" style="background:var(--primary); color:white; border:none; padding:4px 12px; font-size:11px; border-radius:2px; cursor:pointer;">检索</button>
+            <div style="padding:10px 0; background: #fff; position: sticky; top: 0; z-index: 101; border-bottom: 1px solid #f1f5f9; margin-bottom: 15px;">
+                <div class="filter-grid">
+                    <select id="f-year"><option value="all">所有年份</option>{% for y in years %}<option value="{{y}}">{{y}}年</option>{% endfor %}</select>
+                    <select id="f-month"><option value="all">所有月份</option>{% for m in months %}<option value="{{m}}">{{m}}月</option>{% endfor %}</select>
+                    <select id="f-date"><option value="all">具体日期 (选后年月失效)</option>{% for d in dates %}<option value="{{d}}">{% if '至' in d %}{{ d.split('至')[1].strip() }}{% else %}{{ d }}{% endif %}</option>{% endfor %}</select>
+                    <select id="f-topic"><option value="all">所有话题</option>{% for t in all_topics %}<option value="{{t}}">{{t}}</option>{% endfor %}</select>
+                </div>
+                <div style="display:flex; gap:8px;">
+                    <select id="f-co" style="flex:1; font-size:11px; padding:4px;"><option value="all">所有公司</option>{% for c in all_companies_clean %}<option value="{{c}}">{{c}}</option>{% endfor %}</select>
+                    <button onclick="doSearch()" style="background:var(--primary); color:white; border:none; padding:6px 20px; font-size:11px; border-radius:4px; cursor:pointer; font-weight:bold;">立即检索</button>
+                </div>
             </div>
             <div id="results"></div>
         </div>
@@ -245,12 +268,30 @@ def main():
             const select = document.getElementById('dateSelect'); 
             if(select) { changeDate(select.value); }
         };
+
         function doSearch() {
-            const d = document.getElementById('f-date').value, c = document.getElementById('f-co').value, t = document.getElementById('f-topic').value;
+            const y = document.getElementById('f-year').value;
+            const m = document.getElementById('f-month').value;
+            const d = document.getElementById('f-date').value;
+            const c = document.getElementById('f-co').value;
+            const t = document.getElementById('f-topic').value;
+            
             const filtered = rawData.filter(it => {
-                // 修改点：匹配原始公司字符串中是否包含所选的单个公司名
-                return (d === 'all' || it['日期'] == d) && (c === 'all' || it['公司'].includes(c)) && (t === 'all' || it['话题_list'].includes(t));
+                // 日期逻辑：如果选了具体日期，则忽略年和月。否则按年和月筛选。
+                let dateMatch = true;
+                if (d !== 'all') {
+                    dateMatch = (it['日期'] === d);
+                } else {
+                    const yearMatch = (y === 'all' || it['year'].toString() === y);
+                    const monthMatch = (m === 'all' || it['month'].toString() === m);
+                    dateMatch = yearMatch && monthMatch;
+                }
+
+                const coMatch = (c === 'all' || it['公司'].includes(c));
+                const topicMatch = (t === 'all' || it['话题_list'].includes(t));
+                return dateMatch && coMatch && topicMatch;
             });
+
             const resDiv = document.getElementById('results');
             resDiv.innerHTML = filtered.length ? '' : '<p style="text-align:center; padding:30px; font-size:11px; color:#999;">无匹配新闻</p>';
             filtered.forEach(it => {
@@ -266,13 +307,15 @@ def main():
     </html>
     """
 
-    # 4.1 输出
+    # 4.1 渲染输出
     html = Template(template_str).render(
-        dates=all_dates, 
+        dates=all_dates,
+        years=all_years,
+        months=all_months,
         news_data_map=news_data_map, 
         headlines_map=headlines_map, 
         final_json_str=final_json_str, 
-        all_companies_clean=all_unique_companies_clean, # 使用新生成的干净列表
+        all_companies_clean=all_unique_companies_clean,
         all_topics=all_unique_topics,
         SECONDARY_TITLE=SECONDARY_TITLE
     )
@@ -280,6 +323,7 @@ def main():
     with open("index.html", "w", encoding="utf-8") as f: f.write(html)
     with open("CNAME", "w") as f: f.write(MY_DOMAIN)
 
+    # 微信申诉验证文件
     verify_filename = "9e6e1fc6e963e82b5025e7569958c4bb.txt"
     verify_content = "9228ad55ba9d00917e9f086a3830b550f27e545c"
     with open(verify_filename, "w", encoding="utf-8") as f:
