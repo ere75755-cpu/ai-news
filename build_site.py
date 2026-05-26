@@ -421,7 +421,12 @@ def main():
     for c_list in df['公司_list']: all_individual_companies.update(c_list)
     all_unique_companies_clean = sorted(list(all_individual_companies), key=lambda x: x.encode('gbk') if isinstance(x, str) else x)
 
-    final_json_str = json.dumps(df.to_dict('records'), ensure_ascii=False)
+    # 历史检索用数据：只保留必要字段
+    search_fields = ['日期', '分类', '话题', '公司', '标题', '核心内容', '来源', '链接', '话题_list', '公司_list', 'year', 'month']
+    df_search = df[[c for c in search_fields if c in df.columns]].copy()
+    final_json_str = json.dumps(df_search.to_dict('records'), ensure_ascii=False)
+    with open("data.json", "w", encoding="utf-8") as f:
+        f.write(final_json_str)
 
     template_str = r"""
     <!DOCTYPE html>
@@ -631,8 +636,8 @@ def main():
                 </div>
 
                 <!-- 按公司展示本月所有新闻 -->
-                <h3 class="section-divider" onclick="toggleMonthly(this)">本月动态</h3>
-                <div class="monthly-content">
+                <h3 class="section-divider collapsed" onclick="toggleMonthly(this)">本月动态</h3>
+                <div class="monthly-content collapsed">
                 {% for company, items in browser_data_by_month[month_key].items() %}
                 <div class="company-section">
                     <h2 class="sticky-title browser">{{company}}</h2>
@@ -712,8 +717,8 @@ def main():
                 </div>
 
                 <!-- 按公司展示本月所有新闻 -->
-                <h3 class="section-divider" onclick="toggleMonthly(this)">本月动态</h3>
-                <div class="monthly-content">
+                <h3 class="section-divider collapsed" onclick="toggleMonthly(this)">本月动态</h3>
+                <div class="monthly-content collapsed">
                 {% for company, items in ime_data_by_month[month_key].items() %}
                 <div class="company-section">
                     <h2 class="sticky-title ime">{{company}}</h2>
@@ -771,7 +776,8 @@ def main():
         </div>
     </div>
     <script>
-        const rawData = {{ final_json_str | safe }};
+        let rawData = [];
+        fetch('data.json').then(r => r.json()).then(data => { rawData = data; }).catch(() => { rawData = []; });
         
         function initFilter() {
             const years = [...new Set(rawData.map(it => it.year))].sort((a,b) => b-a);
@@ -945,7 +951,6 @@ def main():
         ime_data_by_month=ime_data_by_month,
         ime_weeks_by_month=ime_weeks_by_month,
         ime_week_headlines=ime_week_headlines,
-        final_json_str=final_json_str, 
         all_companies_clean=all_unique_companies_clean,
         all_topics=all_unique_topics,
         SECONDARY_TITLE=SECONDARY_TITLE
