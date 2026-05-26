@@ -435,7 +435,7 @@ def main():
         <link rel="shortcut icon" href="https://www.aipulse.run/logo.jpg">
         <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@700&display=swap" rel="stylesheet">
         <style>
-            :root { --primary: #1a73e8; --primary-browser: #8b7355; --primary-ime: #059669; --header-bg: #475569; --bg: #ffffff; --text: #334155; --border: #f1f5f9; --sub-bg: #f8fafc; }
+            :root { --primary: #1a73e8; --primary-browser: #1a73e8; --primary-ime: #1a73e8; --header-bg: #475569; --bg: #ffffff; --text: #334155; --border: #f1f5f9; --sub-bg: #f8fafc; }
             body { font-family: -apple-system, "PingFang SC", sans-serif; background: var(--bg); color: var(--text); margin: 0; line-height: 1.5; }
             .container { max-width: 780px; margin: auto; padding: 10px; }
             header h1 { font-family: 'Noto Serif SC', serif; text-align: center; font-size: 20px; margin: 15px 0 10px; color: #0f172a; }
@@ -460,7 +460,6 @@ def main():
             .tab-content { display: none; }
             .tab-content.active { display: block; }
 
-            .headline-title { position: -webkit-sticky; position: sticky; top: 0; z-index: 1001; background: var(--header-bg); padding: 10px 0; margin: 0; color: #ffffff; text-align: center; font-size: 15px; font-weight: 700; letter-spacing: 3px; font-family: 'Noto Serif SC', serif; box-shadow: 0 2px 10px rgba(0,0,0,0.05); border-radius: 4px 4px 0 0; }
             .headline-section { margin-bottom: 30px; background: var(--sub-bg); padding-bottom: 10px; border-radius: 0 0 4px 4px; border: 1px solid #edf2f7; border-top: none; }
             .hl-item { padding: 12px; border-bottom: 1px solid #edf2f7; }
             .hl-item:last-child { border-bottom: none; }
@@ -473,8 +472,8 @@ def main():
             .btn-search { background: var(--primary); color: white; border: none; padding: 10px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; margin-top: 4px; }
 
             .sticky-title { position: -webkit-sticky; position: sticky; top: 0; z-index: 1000; background: rgba(255, 255, 255, 0.98); backdrop-filter: blur(8px); padding: 8px 0 8px 10px; margin: 0; color: var(--primary); border-left: 4px solid var(--primary); font-size: 15px; font-weight: 700; border-bottom: 1px solid #f1f5f9; font-family: 'Noto Serif SC', serif; }
-            .sticky-title.browser { color: var(--primary-browser); border-left-color: var(--primary-browser); }
-            .sticky-title.ime { color: var(--primary-ime); border-left-color: var(--primary-ime); }
+            .sticky-title.browser { color: var(--primary); border-left-color: var(--primary); }
+            .sticky-title.ime { color: var(--primary); border-left-color: var(--primary); }
             .news-item { padding: 10px 4px; border-bottom: 1px solid #f1f5f9; cursor: pointer; }
             .tag-group { margin-bottom: 4px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
             .tag { font-size: 9px; padding: 1px 5px; font-weight: 600; background: #f1f5f9; color: #64748b; border-radius: 2px; }
@@ -489,9 +488,14 @@ def main():
             .footer { font-size: 10px; color: #94a3b8; display: flex; justify-content: space-between; margin-top: 8px; }
             .link-btn { color: var(--primary); text-decoration: none; font-weight: 700; }
             .empty-state { text-align: center; padding: 40px 20px; color: #94a3b8; font-size: 13px; }
-            .section-divider { font-size: 14px; font-weight: 700; color: #475569; text-align: center; margin: 20px 0 10px; padding: 8px 0; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; background: #f8fafc; font-family: 'Noto Serif SC', serif; letter-spacing: 2px; }
-            .week-select { -webkit-appearance: none; appearance: none; display: block; width: calc(100% - 24px); margin: 8px auto 0; background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.4); color: #fff; font-size: 12px; padding: 6px 30px 6px 12px; border-radius: 4px; cursor: pointer; font-weight: normal; letter-spacing: 0; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' fill='white' viewBox='0 0 16 16'%3E%3Cpath d='M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; }
+            .week-select { -webkit-appearance: none; appearance: none; width: auto; background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.4); color: #fff; font-size: 11px; padding: 2px 22px 2px 8px; border-radius: 4px; cursor: pointer; font-weight: bold; letter-spacing: 0; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' fill='white' viewBox='0 0 16 16'%3E%3Cpath d='M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 6px center; position: absolute; right: 12px; top: 50%; transform: translateY(-50%); }
             .week-select:focus { outline: none; border-color: rgba(255,255,255,0.7); }
+            .headline-title { position: -webkit-sticky; position: sticky; top: 0; z-index: 1001; background: var(--header-bg); padding: 10px 0; margin: 0; color: #ffffff; text-align: center; font-size: 15px; font-weight: 700; letter-spacing: 3px; font-family: 'Noto Serif SC', serif; box-shadow: 0 2px 10px rgba(0,0,0,0.05); border-radius: 4px 4px 0 0; position: relative; }
+            .section-divider { font-size: 14px; font-weight: 700; color: #475569; text-align: center; margin: 20px 0 0; padding: 8px 0; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; background: #f8fafc; font-family: 'Noto Serif SC', serif; letter-spacing: 2px; cursor: pointer; user-select: none; }
+            .section-divider::after { content: ' ▾'; font-size: 10px; color: #94a3b8; }
+            .section-divider.collapsed::after { content: ' ▸'; }
+            .monthly-content { transition: max-height 0.3s ease; overflow: hidden; }
+            .monthly-content.collapsed { max-height: 0 !important; }
         </style>
     </head>
     <body>
@@ -513,18 +517,16 @@ def main():
         </div>
 
         <!-- ========== 每周浏览器综述 控制栏 ========== -->
-        <div id="ctrl-browser" class="control-bar" style="display:none;">
-            <div id="browser-time-label" class="time-label">监测周期：加载中...</div>
-            <select id="browserMonthSelect" class="date-picker-mini" style="color:var(--primary-browser);" onchange="changeBrowserMonth(this.value)">
+        <div id="ctrl-browser" class="control-bar" style="display:none; justify-content: flex-end;">
+            <select id="browserMonthSelect" class="date-picker-mini" onchange="changeBrowserMonth(this.value)">
                 {% for m in browser_months %}<option value="{{m}}">{{m.split('/')[0]}}年{{m.split('/')[1]}}月</option>{% endfor %}
                 {% if not browser_months %}<option value="">暂无数据</option>{% endif %}
             </select>
         </div>
 
         <!-- ========== 每周输入法综述 控制栏 ========== -->
-        <div id="ctrl-ime" class="control-bar" style="display:none;">
-            <div id="ime-time-label" class="time-label">监测周期：加载中...</div>
-            <select id="imeMonthSelect" class="date-picker-mini" style="color:var(--primary-ime);" onchange="changeImeMonth(this.value)">
+        <div id="ctrl-ime" class="control-bar" style="display:none; justify-content: flex-end;">
+            <select id="imeMonthSelect" class="date-picker-mini" onchange="changeImeMonth(this.value)">
                 {% for m in ime_months %}<option value="{{m}}">{{m.split('/')[0]}}年{{m.split('/')[1]}}月</option>{% endfor %}
                 {% if not ime_months %}<option value="">暂无数据</option>{% endif %}
             </select>
@@ -590,16 +592,15 @@ def main():
             <div id="browser-month-{{month_key.replace('/', '-')}}" class="browser-month-container" style="display: {{ 'block' if loop.first else 'none' }}">
                 <!-- 本周动态 with week selector -->
                 <div class="headline-section">
-                    <h2 class="headline-title" style="background:var(--primary-browser);">本周动态</h2>
-                    {% if browser_weeks_by_month.get(month_key) %}
-                    <div style="background:var(--primary-browser); padding: 0 12px 10px; margin-top:-1px;">
+                    <h2 class="headline-title">本周动态
+                        {% if browser_weeks_by_month.get(month_key) %}
                         <select class="week-select" onchange="changeBrowserWeek('{{month_key.replace('/', '-')}}', this.value)">
                             {% for w in browser_weeks_by_month[month_key] %}
                             <option value="{{w['key']}}">{{w['label']}}</option>
                             {% endfor %}
                         </select>
-                    </div>
-                    {% endif %}
+                        {% endif %}
+                    </h2>
                     {% if browser_weeks_by_month.get(month_key) %}
                     {% for w in browser_weeks_by_month[month_key] %}
                     <div class="week-headlines-block" id="browser-week-{{month_key.replace('/', '-')}}-{{w['key']}}" style="display: {{ 'block' if loop.first else 'none' }}">
@@ -630,7 +631,8 @@ def main():
                 </div>
 
                 <!-- 按公司展示本月所有新闻 -->
-                <h3 class="section-divider">本月动态</h3>
+                <h3 class="section-divider" onclick="toggleMonthly(this)">本月动态</h3>
+                <div class="monthly-content">
                 {% for company, items in browser_data_by_month[month_key].items() %}
                 <div class="company-section">
                     <h2 class="sticky-title browser">{{company}}</h2>
@@ -656,6 +658,7 @@ def main():
                     {% endif %}
                 </div>
                 {% endfor %}
+                </div>
             </div>
             {% endfor %}
             {% else %}
@@ -670,16 +673,15 @@ def main():
             <div id="ime-month-{{month_key.replace('/', '-')}}" class="ime-month-container" style="display: {{ 'block' if loop.first else 'none' }}">
                 <!-- 本周动态 with week selector -->
                 <div class="headline-section">
-                    <h2 class="headline-title" style="background:var(--primary-ime);">本周动态</h2>
-                    {% if ime_weeks_by_month.get(month_key) %}
-                    <div style="background:var(--primary-ime); padding: 0 12px 10px; margin-top:-1px;">
+                    <h2 class="headline-title">本周动态
+                        {% if ime_weeks_by_month.get(month_key) %}
                         <select class="week-select" onchange="changeImeWeek('{{month_key.replace('/', '-')}}', this.value)">
                             {% for w in ime_weeks_by_month[month_key] %}
                             <option value="{{w['key']}}">{{w['label']}}</option>
                             {% endfor %}
                         </select>
-                    </div>
-                    {% endif %}
+                        {% endif %}
+                    </h2>
                     {% if ime_weeks_by_month.get(month_key) %}
                     {% for w in ime_weeks_by_month[month_key] %}
                     <div class="week-headlines-block" id="ime-week-{{month_key.replace('/', '-')}}-{{w['key']}}" style="display: {{ 'block' if loop.first else 'none' }}">
@@ -710,7 +712,8 @@ def main():
                 </div>
 
                 <!-- 按公司展示本月所有新闻 -->
-                <h3 class="section-divider">本月动态</h3>
+                <h3 class="section-divider" onclick="toggleMonthly(this)">本月动态</h3>
+                <div class="monthly-content">
                 {% for company, items in ime_data_by_month[month_key].items() %}
                 <div class="company-section">
                     <h2 class="sticky-title ime">{{company}}</h2>
@@ -736,6 +739,7 @@ def main():
                     {% endif %}
                 </div>
                 {% endfor %}
+                </div>
             </div>
             {% endfor %}
             {% else %}
@@ -826,14 +830,12 @@ def main():
             document.querySelectorAll('.browser-month-container').forEach(g => g.style.display = 'none');
             const target = document.getElementById('browser-month-' + monthKey.replace('/', '-'));
             if(target) target.style.display = 'block';
-            updateMonthTimeLabel(monthKey, 'browser-time-label');
         }
 
         function changeImeMonth(monthKey) {
             document.querySelectorAll('.ime-month-container').forEach(g => g.style.display = 'none');
             const target = document.getElementById('ime-month-' + monthKey.replace('/', '-'));
             if(target) target.style.display = 'block';
-            updateMonthTimeLabel(monthKey, 'ime-time-label');
         }
 
         function changeBrowserWeek(monthKey, weekKey) {
@@ -886,11 +888,13 @@ def main():
         window.onload = () => { 
             const select = document.getElementById('dateSelect'); 
             if(select && select.value) changeDate(select.value);
-            const bSelect = document.getElementById('browserMonthSelect');
-            if(bSelect && bSelect.value) updateMonthTimeLabel(bSelect.value, 'browser-time-label');
-            const iSelect = document.getElementById('imeMonthSelect');
-            if(iSelect && iSelect.value) updateMonthTimeLabel(iSelect.value, 'ime-time-label');
         };
+
+        function toggleMonthly(el) {
+            el.classList.toggle('collapsed');
+            const content = el.nextElementSibling;
+            if(content) content.classList.toggle('collapsed');
+        }
 
         function doSearch() {
             const category = document.getElementById('f-category').value;
