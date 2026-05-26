@@ -175,6 +175,11 @@ def main():
             df['是否头条'] = pd.to_numeric(df['是否头条'], errors='coerce').fillna(0).astype(int)
         else:
             df['是否头条'] = 0
+        # 排序列处理
+        if '排序' in df.columns:
+            df['排序'] = pd.to_numeric(df['排序'], errors='coerce').fillna(999).astype(int)
+        else:
+            df['排序'] = 999
         df = df.fillna("")
         if '分类' not in df.columns:
             df['分类'] = default_category
@@ -295,14 +300,15 @@ def main():
                     'end': we
                 })
                 # 该周的动态（有头条则只展示头条，无头条则展示该周所有新闻）
+                # 排序：优先按"排序"列升序，再按日期降序
                 week_df = df_browser[(df_browser['date_dt'] >= datetime.datetime.combine(ws, datetime.time.min)) & 
                                      (df_browser['date_dt'] <= datetime.datetime.combine(we, datetime.time.max))].copy()
                 headline_df = week_df[week_df['是否头条'] > 0].copy()
                 if not headline_df.empty:
-                    headline_df = headline_df.sort_values(by='date_dt', ascending=False)
+                    headline_df = headline_df.sort_values(by=['排序', 'date_dt'], ascending=[True, False])
                     browser_week_headlines[week_key] = headline_df.to_dict('records')
                 elif not week_df.empty:
-                    week_df = week_df.sort_values(by='date_dt', ascending=False)
+                    week_df = week_df.sort_values(by=['排序', 'date_dt'], ascending=[True, False])
                     browser_week_headlines[week_key] = week_df.to_dict('records')
                 else:
                     browser_week_headlines[week_key] = []
@@ -370,10 +376,10 @@ def main():
                                   (df_ime['date_dt'] <= datetime.datetime.combine(we, datetime.time.max))].copy()
                 headline_df = week_df[week_df['是否头条'] > 0].copy()
                 if not headline_df.empty:
-                    headline_df = headline_df.sort_values(by='date_dt', ascending=False)
+                    headline_df = headline_df.sort_values(by=['排序', 'date_dt'], ascending=[True, False])
                     ime_week_headlines[week_key] = headline_df.to_dict('records')
                 elif not week_df.empty:
-                    week_df = week_df.sort_values(by='date_dt', ascending=False)
+                    week_df = week_df.sort_values(by=['排序', 'date_dt'], ascending=[True, False])
                     ime_week_headlines[week_key] = week_df.to_dict('records')
                 else:
                     ime_week_headlines[week_key] = []
@@ -429,7 +435,7 @@ def main():
         <link rel="shortcut icon" href="https://www.aipulse.run/logo.jpg">
         <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@700&display=swap" rel="stylesheet">
         <style>
-            :root { --primary: #1a73e8; --primary-browser: #7c3aed; --primary-ime: #059669; --header-bg: #475569; --bg: #ffffff; --text: #334155; --border: #f1f5f9; --sub-bg: #f8fafc; }
+            :root { --primary: #1a73e8; --primary-browser: #8b7355; --primary-ime: #059669; --header-bg: #475569; --bg: #ffffff; --text: #334155; --border: #f1f5f9; --sub-bg: #f8fafc; }
             body { font-family: -apple-system, "PingFang SC", sans-serif; background: var(--bg); color: var(--text); margin: 0; line-height: 1.5; }
             .container { max-width: 780px; margin: auto; padding: 10px; }
             header h1 { font-family: 'Noto Serif SC', serif; text-align: center; font-size: 20px; margin: 15px 0 10px; color: #0f172a; }
@@ -483,6 +489,7 @@ def main():
             .footer { font-size: 10px; color: #94a3b8; display: flex; justify-content: space-between; margin-top: 8px; }
             .link-btn { color: var(--primary); text-decoration: none; font-weight: 700; }
             .empty-state { text-align: center; padding: 40px 20px; color: #94a3b8; font-size: 13px; }
+            .section-divider { font-size: 14px; font-weight: 700; color: #475569; text-align: center; margin: 20px 0 10px; padding: 8px 0; border-top: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; background: #f8fafc; font-family: 'Noto Serif SC', serif; letter-spacing: 2px; }
             .week-select { -webkit-appearance: none; appearance: none; display: block; width: calc(100% - 24px); margin: 8px auto 0; background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.4); color: #fff; font-size: 12px; padding: 6px 30px 6px 12px; border-radius: 4px; cursor: pointer; font-weight: normal; letter-spacing: 0; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' fill='white' viewBox='0 0 16 16'%3E%3Cpath d='M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; }
             .week-select:focus { outline: none; border-color: rgba(255,255,255,0.7); }
         </style>
@@ -623,6 +630,7 @@ def main():
                 </div>
 
                 <!-- 按公司展示本月所有新闻 -->
+                <h3 class="section-divider">本月动态</h3>
                 {% for company, items in browser_data_by_month[month_key].items() %}
                 <div class="company-section">
                     <h2 class="sticky-title browser">{{company}}</h2>
@@ -702,6 +710,7 @@ def main():
                 </div>
 
                 <!-- 按公司展示本月所有新闻 -->
+                <h3 class="section-divider">本月动态</h3>
                 {% for company, items in ime_data_by_month[month_key].items() %}
                 <div class="company-section">
                     <h2 class="sticky-title ime">{{company}}</h2>
