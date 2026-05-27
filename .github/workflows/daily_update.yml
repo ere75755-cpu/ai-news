@@ -1,11 +1,7 @@
 name: Daily AI News Update
 
 on:
-  push:
-    branches:
-      - main
   schedule:
-    # 北京时间 20:30 (UTC 12:30)
     - cron: '30 12 * * *'
   workflow_dispatch:
 
