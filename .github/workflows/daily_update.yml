@@ -6,11 +6,16 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
+  pages: write
+  id-token: write
 
 jobs:
-  build:
+  build-and-deploy:
     runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -25,11 +30,17 @@ jobs:
           python -m pip install --upgrade pip
           pip install pandas jinja2
 
-      - name: Build index.html
+      - name: Build site
         run: python build_site.py
 
-      - name: Commit and Push
-        uses: stefanzweifel/git-auto-commit-action@v5
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
         with:
-          commit_message: "Auto-update news"
-          file_pattern: "index.html data.json CNAME 9e6e1fc6e963e82b5025e7569958c4bb.txt"
+          path: '.'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
