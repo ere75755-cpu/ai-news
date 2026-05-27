@@ -14,8 +14,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -31,13 +29,7 @@ jobs:
         run: python build_site.py
 
       - name: Commit and Push
-        run: |
-          git config --global user.name "AI Analyst"
-          git config --global user.email "analyst@ai.com"
-          git add index.html data.json CNAME 9e6e1fc6e963e82b5025e7569958c4bb.txt
-          if [ -n "$(git status --porcelain)" ]; then
-            git commit -m "Auto-update news and verify file at $(date)"
-            git push
-          else
-            echo "No changes to commit, skipping push."
-          fi
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "Auto-update news"
+          file_pattern: "index.html data.json CNAME 9e6e1fc6e963e82b5025e7569958c4bb.txt"
