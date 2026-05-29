@@ -194,14 +194,7 @@ def main():
     df_ai = preprocess(df_ai, default_category='AI')
     df_bi = preprocess(df_bi, default_category='浏览器')
 
-    # 从 AI 数据中去除与浏览器/输入法表重复的条目（以标题为唯一标识）
-    if not df_ai.empty and not df_bi.empty:
-        bi_titles = set(df_bi['标题'].tolist())
-        before_count = len(df_ai)
-        df_ai = df_ai[~df_ai['标题'].isin(bi_titles)].copy()
-        removed = before_count - len(df_ai)
-        if removed > 0:
-            print(f"⚠️ 从 AI 数据中去除 {removed} 条与浏览器/输入法重复的新闻")
+    # 两个数据源独立，同一条新闻出现在两个表中时两边都保留
 
     # 合并全量数据（用于历史检索）
     df = pd.concat([df_ai, df_bi], ignore_index=True) if not df_ai.empty or not df_bi.empty else pd.DataFrame()
